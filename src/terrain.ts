@@ -15,6 +15,11 @@ const MACRO_NOISE_OFFSET = 500;
 const TERRAIN_HEIGHT_RANGE = MACRO_HEIGHT_SCALE + HEIGHT_SCALE;
 
 const DIRT_TILE_CHANCE = 0.1;
+const ROCK_TILE_CHANCE = 0.06;
+const ROCK_FACE_UV_SIZE = 0.12;
+const ROCK_TOP_SCALE = 0.72;
+const TILE_SIZE = CHUNK_SIZE / CHUNK_SEGMENTS;
+const ROCK_EMBED_DEPTH = TILE_SIZE * 0.35;
 const CHUNK_PADDING = 2;
 const MAX_ACTIVE_CHUNKS = 50;
 const QUADS_UPDATED_PER_FRAME = 4;
@@ -37,15 +42,18 @@ function worldToChunkIndex(fWorld: number): number {
 }
 
 class TerrainChunk {
+  readonly root = new THREE.Group();
   readonly mesh: THREE.Mesh;
   readonly nQuadCount: number;
   private readonly geometry: THREE.BufferGeometry;
+  private readonly oRockTemplateGeometry: THREE.BufferGeometry;
   private readonly fTileUvSize: number;
 
   constructor(
     nChunkX: number,
     nChunkZ: number,
     aMaterials: THREE.Material[],
+    oRockMaterial: THREE.Material,
     fnSampleHeight: SampleHeightFn,
   ) {
     const fTileUvSize = TEXTURE_TILE_UV_SIZE;
@@ -79,9 +87,47 @@ class TerrainChunk {
     this.fTileUvSize = fTileUvSize;
 
     this.mesh = new THREE.Mesh(geometryNonIndexed, aMaterials);
-    this.mesh.position.set(fCenterX, 0, fCenterZ);
     this.mesh.rotation.x = -Math.PI / 2;
     this.mesh.receiveShadow = true;
+    this.root.position.set(fCenterX, 0, fCenterZ);
+    this.root.add(this.mesh);
+
+    this.oRockTemplateGeometry = createRockMoundGeometry(
+      TILE_SIZE,
+      ROCK_TOP_SCALE,
+    );
+    this.buildRocks(oRockMaterial, fnSampleHeight);
+  }
+
+  private buildRocks(
+    oRockMaterial: THREE.Material,
+    fnSampleHeight: SampleHeightFn,
+  ): void {
+    const fHalfChunk = CHUNK_SIZE * 0.5;
+    const fRockCenterY = TILE_SIZE * 0.5 - ROCK_EMBED_DEPTH;
+
+    for (let iy = 0; iy < CHUNK_SEGMENTS; iy++) {
+      for (let ix = 0; ix < CHUNK_SEGMENTS; ix++) {
+        if (Math.random() >= ROCK_TILE_CHANCE) {
+          continue;
+        }
+
+        const fLocalX = -fHalfChunk + (ix + 0.5) * TILE_SIZE;
+        const fLocalZ = fHalfChunk - (iy + 0.5) * TILE_SIZE;
+        const fWorldX = this.root.position.x + fLocalX;
+        const fWorldZ = this.root.position.z + fLocalZ;
+        const fHeight = fnSampleHeight(fWorldX, fWorldZ);
+
+        const oRockGeometry = this.oRockTemplateGeometry.clone();
+        applyRockFaceUvs(oRockGeometry, ROCK_FACE_UV_SIZE);
+
+        const oRock = new THREE.Mesh(oRockGeometry, oRockMaterial);
+        oRock.position.set(fLocalX, fHeight + fRockCenterY, fLocalZ);
+        oRock.castShadow = true;
+        oRock.receiveShadow = true;
+        this.root.add(oRock);
+      }
+    }
   }
 
   updateUvs(nCount: number): void {
@@ -97,6 +143,16 @@ class TerrainChunk {
 
   dispose(): void {
     this.geometry.dispose();
+    this.oRockTemplateGeometry.dispose();
+    this.root.traverse((oChild) => {
+      if (oChild === this.mesh) {
+        return;
+      }
+
+      if (oChild instanceof THREE.Mesh) {
+        oChild.geometry.dispose();
+      }
+    });
   }
 }
 
@@ -104,6 +160,7 @@ export class Terrain {
   readonly root = new THREE.Group();
   private readonly mChunks = new Map<string, TerrainChunk>();
   private readonly aMaterials: THREE.Material[];
+  private readonly oRockMaterial: THREE.Material;
   private readonly oNoise = new SimplexNoise();
   private readonly oFrustum = new THREE.Frustum();
   private readonly mProjScreenMatrix = new THREE.Matrix4();
@@ -131,6 +188,16 @@ export class Terrain {
         flatShading: true,
       }),
     ];
+
+    const oRockTexture = new THREE.TextureLoader().load("/rock.png");
+    oRockTexture.wrapS = THREE.RepeatWrapping;
+    oRockTexture.wrapT = THREE.RepeatWrapping;
+    oRockTexture.colorSpace = THREE.SRGBColorSpace;
+
+    this.oRockMaterial = new THREE.MeshStandardMaterial({
+      map: oRockTexture,
+      flatShading: true,
+    });
   }
 
   update(oCamera: THREE.Camera): void {
@@ -147,10 +214,11 @@ export class Terrain {
         nChunkX,
         nChunkZ,
         this.aMaterials,
+        this.oRockMaterial,
         this.sampleHeight.bind(this),
       );
       this.mChunks.set(sKey, oChunk);
-      this.root.add(oChunk.mesh);
+      this.root.add(oChunk.root);
     }
 
     for (const [sKey, oChunk] of this.mChunks) {
@@ -158,7 +226,7 @@ export class Terrain {
         continue;
       }
 
-      this.root.remove(oChunk.mesh);
+      this.root.remove(oChunk.root);
       oChunk.dispose();
       this.mChunks.delete(sKey);
     }
@@ -301,6 +369,152 @@ function getGroundFrustumBounds(oCamera: THREE.Camera): {
   }
 
   return { minX: fMinX, maxX: fMaxX, minZ: fMinZ, maxZ: fMaxZ };
+}
+
+function createRockMoundGeometry(
+  fSize: number,
+  fTopScale: number,
+): THREE.BufferGeometry {
+  const fHalfHeight = fSize * 0.5;
+  const fHalfBottom = fSize * 0.5;
+  const fHalfTop = fHalfBottom * fTopScale;
+  const aPositions: number[] = [];
+  const aUvs: number[] = [];
+  const aIndices: number[] = [];
+
+  const addQuad = (
+    ax0: number,
+    ay0: number,
+    az0: number,
+    ax1: number,
+    ay1: number,
+    az1: number,
+    ax2: number,
+    ay2: number,
+    az2: number,
+    ax3: number,
+    ay3: number,
+    az3: number,
+  ): void => {
+    const nBase = aPositions.length / 3;
+    aPositions.push(ax0, ay0, az0, ax1, ay1, az1, ax2, ay2, az2, ax3, ay3, az3);
+    aUvs.push(0, 0, 1, 0, 1, 1, 0, 1);
+    aIndices.push(nBase, nBase + 1, nBase + 2, nBase, nBase + 2, nBase + 3);
+  };
+
+  addQuad(
+    -fHalfTop,
+    fHalfHeight,
+    -fHalfTop,
+    -fHalfTop,
+    fHalfHeight,
+    fHalfTop,
+    fHalfTop,
+    fHalfHeight,
+    fHalfTop,
+    fHalfTop,
+    fHalfHeight,
+    -fHalfTop,
+  );
+  addQuad(
+    -fHalfBottom,
+    -fHalfHeight,
+    fHalfBottom,
+    fHalfBottom,
+    -fHalfHeight,
+    fHalfBottom,
+    fHalfBottom,
+    -fHalfHeight,
+    -fHalfBottom,
+    -fHalfBottom,
+    -fHalfHeight,
+    -fHalfBottom,
+  );
+  addQuad(
+    -fHalfBottom,
+    -fHalfHeight,
+    fHalfBottom,
+    fHalfBottom,
+    -fHalfHeight,
+    fHalfBottom,
+    fHalfTop,
+    fHalfHeight,
+    fHalfTop,
+    -fHalfTop,
+    fHalfHeight,
+    fHalfTop,
+  );
+  addQuad(
+    fHalfBottom,
+    -fHalfHeight,
+    -fHalfBottom,
+    -fHalfBottom,
+    -fHalfHeight,
+    -fHalfBottom,
+    -fHalfTop,
+    fHalfHeight,
+    -fHalfTop,
+    fHalfTop,
+    fHalfHeight,
+    -fHalfTop,
+  );
+  addQuad(
+    fHalfBottom,
+    -fHalfHeight,
+    fHalfBottom,
+    fHalfBottom,
+    -fHalfHeight,
+    -fHalfBottom,
+    fHalfTop,
+    fHalfHeight,
+    -fHalfTop,
+    fHalfTop,
+    fHalfHeight,
+    fHalfTop,
+  );
+  addQuad(
+    -fHalfBottom,
+    -fHalfHeight,
+    -fHalfBottom,
+    -fHalfBottom,
+    -fHalfHeight,
+    fHalfBottom,
+    -fHalfTop,
+    fHalfHeight,
+    fHalfTop,
+    -fHalfTop,
+    fHalfHeight,
+    -fHalfTop,
+  );
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute(
+    "position",
+    new THREE.Float32BufferAttribute(aPositions, 3),
+  );
+  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(aUvs, 2));
+  geometry.setIndex(aIndices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function applyRockFaceUvs(
+  geometry: THREE.BufferGeometry,
+  fFaceUvSize: number,
+): void {
+  const uvs = geometry.attributes.uv as THREE.BufferAttribute;
+  const fOffsetU = Math.random();
+  const fOffsetV = Math.random();
+
+  for (let i = 0; i < uvs.count; i++) {
+    uvs.setXY(
+      i,
+      fOffsetU + uvs.getX(i) * fFaceUvSize,
+      fOffsetV + uvs.getY(i) * fFaceUvSize,
+    );
+  }
+
+  uvs.needsUpdate = true;
 }
 
 function setQuadTileUv(
