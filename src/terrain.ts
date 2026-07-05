@@ -28,7 +28,7 @@ const TREE_BASE_SIZE = TILE_SIZE * 0.55;
 const TREE_EMBED_DEPTH = TILE_SIZE * 0.15;
 const HIGHLIGHT_EMISSIVE = 0x999999;
 const HIGHLIGHT_EMISSIVE_INTENSITY = 0.1;
-const FEATURE_MAX_HEALTH = 5;
+const FEATURE_MAX_HEALTH = 4;
 const CHUNK_PADDING = 2;
 const MAX_ACTIVE_CHUNKS = 50;
 const QUADS_UPDATED_PER_FRAME = 4;
@@ -41,7 +41,7 @@ const A_NDC_CORNERS: ReadonlyArray<readonly [number, number]> = [
 ];
 
 type SampleHeightFn = (fX: number, fZ: number) => number;
-type TileFeature = "rock" | "tree";
+export type TileFeature = "rock" | "tree";
 type RegisterFeatureMeshFn = (
   nTileX: number,
   nTileZ: number,
@@ -460,22 +460,23 @@ export class Terrain {
     this.sHighlightedTileKey = sTileKey;
   }
 
-  damageHighlightedFeature(): boolean {
+  damageHighlightedFeature(): TileFeature | null {
     if (this.sHighlightedTileKey === null || this.oHighlightedMesh === null) {
-      return false;
+      return null;
     }
 
     const sTileKey = this.sHighlightedTileKey;
+    const eFeature = this.oHighlightedMesh.userData.eFeature as TileFeature;
     const nHealth =
       (this.mFeatureHealth.get(sTileKey) ?? FEATURE_MAX_HEALTH) - 1;
 
     if (nHealth <= 0) {
       this.destroyFeature(sTileKey);
-      return true;
+      return eFeature;
     }
 
     this.mFeatureHealth.set(sTileKey, nHealth);
-    return true;
+    return null;
   }
 
   private isFeatureActive(

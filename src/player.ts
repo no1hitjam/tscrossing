@@ -9,6 +9,7 @@ const CROSSHAIR_DISTANCE = 0.5;
 const CROSSHAIR_LIFT = 0.46;
 const CROSSHAIR_ARM = 0.35;
 const CROSSHAIR_THICKNESS = 0.05;
+const RESOURCE_YIELD = 3;
 
 export class Player {
   readonly mesh: THREE.Group;
@@ -17,6 +18,8 @@ export class Player {
   private readonly fnSampleHeight: (fX: number, fZ: number) => number | null;
   private readonly fnIsBlocked: (fX: number, fZ: number) => boolean;
   private fYaw = 0;
+  private nRocks = 0;
+  private nWood = 0;
 
   constructor(
     fnSampleHeight: (fX: number, fZ: number) => number | null,
@@ -146,5 +149,21 @@ export class Player {
 
   get position(): THREE.Vector3 {
     return this.mesh.position;
+  }
+
+  get rocks(): number {
+    return this.nRocks;
+  }
+
+  get wood(): number {
+    return this.nWood;
+  }
+
+  collectResource(eResource: "rock" | "tree"): void {
+    if (eResource === "rock") {
+      this.nRocks += RESOURCE_YIELD;
+    } else {
+      this.nWood += RESOURCE_YIELD;
+    }
   }
 }

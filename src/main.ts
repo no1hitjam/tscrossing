@@ -127,6 +127,14 @@ window.addEventListener("resize", () => {
 const clock = new THREE.Clock();
 let bSpaceWasDown = false;
 
+const elInventoryRocks = document.getElementById("inventory-rocks")!;
+const elInventoryWood = document.getElementById("inventory-wood")!;
+
+function updateInventoryHud(): void {
+  elInventoryRocks.textContent = String(player.rocks);
+  elInventoryWood.textContent = String(player.wood);
+}
+
 function updateShadowLight(): void {
   sunLight.position.set(
     player.position.x + 12,
@@ -158,7 +166,11 @@ function animate(): void {
 
   const bSpaceDown = keys["Space"] ?? false;
   if (bSpaceDown && !bSpaceWasDown) {
-    terrain.damageHighlightedFeature();
+    const eDestroyed = terrain.damageHighlightedFeature();
+    if (eDestroyed !== null) {
+      player.collectResource(eDestroyed);
+      updateInventoryHud();
+    }
   }
   bSpaceWasDown = bSpaceDown;
 
