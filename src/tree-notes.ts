@@ -1,8 +1,15 @@
-const A_NOTE_FILES = ["Note1.txt", "Note2.txt", "Note3.txt"] as const;
+import { marked } from "marked";
+
+const A_NOTE_FILES = ["Note1.md", "Note2.md", "Note3.md", "Note4.md"] as const;
 
 export type NoteFileName = (typeof A_NOTE_FILES)[number];
 
 const mNoteCache = new Map<string, string>();
+
+marked.setOptions({
+  gfm: true,
+  breaks: true,
+});
 
 export function getNoteFileCount(): number {
   return A_NOTE_FILES.length;
@@ -16,8 +23,21 @@ export function isValidNoteFile(sFileName: string): sFileName is NoteFileName {
   return (A_NOTE_FILES as readonly string[]).includes(sFileName);
 }
 
+export function normalizeNoteFileName(sFileName: string): string | null {
+  const sCandidate = sFileName.replace(/\.txt$/i, ".md");
+  if (isValidNoteFile(sCandidate)) {
+    return sCandidate;
+  }
+
+  if (isValidNoteFile(sFileName)) {
+    return sFileName;
+  }
+
+  return null;
+}
+
 export function formatNoteLabel(sFileName: string): string {
-  return sFileName.replace(/\.txt$/i, "");
+  return sFileName.replace(/\.(md|txt)$/i, "");
 }
 
 export async function loadNoteText(sFileName: string): Promise<string> {
@@ -34,4 +54,8 @@ export async function loadNoteText(sFileName: string): Promise<string> {
   const sText = await oResponse.text();
   mNoteCache.set(sFileName, sText);
   return sText;
+}
+
+export function renderNoteHtml(sMarkdown: string): string {
+  return marked.parse(sMarkdown) as string;
 }

@@ -1,5 +1,3 @@
-import { isValidNoteFile } from "./tree-notes";
-
 const COOKIE_NAME = "tscrossing-inventory";
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
 const TILE_KEY_PATTERN = /^-?\d+,-?\d+$/;
@@ -7,7 +5,6 @@ const TILE_KEY_PATTERN = /^-?\d+,-?\d+$/;
 export interface InventoryState {
   rocks: number;
   wood: number;
-  notes: string[];
   collectedTreeNotes: string[];
 }
 
@@ -18,23 +15,6 @@ function parseNonNegativeInteger(value: unknown): number | null {
 
   const nRounded = Math.floor(value);
   return nRounded === value ? nRounded : null;
-}
-
-function parseNoteFileList(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  const aNotes: string[] = [];
-  for (const item of value) {
-    if (typeof item !== "string" || !isValidNoteFile(item) || aNotes.includes(item)) {
-      continue;
-    }
-
-    aNotes.push(item);
-  }
-
-  return aNotes;
 }
 
 function parseTileKeyList(value: unknown): string[] {
@@ -85,7 +65,6 @@ export function loadInventoryFromCookie(): InventoryState | null {
     return {
       rocks: nRocks,
       wood: nWood,
-      notes: parseNoteFileList(oParsed.notes),
       collectedTreeNotes: parseTileKeyList(oParsed.collectedTreeNotes),
     };
   } catch {

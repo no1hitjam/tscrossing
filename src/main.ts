@@ -7,7 +7,7 @@ import {
 import { PappusParticles } from "./pappus-particles";
 import { Player } from "./player";
 import { Terrain } from "./terrain";
-import { loadNoteText, formatNoteLabel } from "./tree-notes";
+import { loadNoteText, renderNoteHtml } from "./tree-notes";
 
 const GAME_KEY_CODES = new Set([
   "KeyW",
@@ -136,68 +136,58 @@ let bNotePanelOpen = false;
 
 const elInventoryRocks = document.getElementById("inventory-rocks")!;
 const elInventoryWood = document.getElementById("inventory-wood")!;
-const elInventoryNotesEmpty = document.getElementById("inventory-notes-empty")!;
-const elInventoryNotesList = document.getElementById("inventory-notes-list")!;
+const elNoteBackdrop = document.getElementById("note-backdrop")!;
 const elNotePanel = document.getElementById("note-panel")!;
 const elNoteText = document.getElementById("note-text")!;
 
 function updateInventoryHud(): void {
   elInventoryRocks.textContent = String(player.rocks);
   elInventoryWood.textContent = String(player.wood);
-
-  elInventoryNotesList.replaceChildren();
-  const aNotes = player.notes;
-  elInventoryNotesEmpty.hidden = aNotes.length > 0;
-
-  for (const sFileName of aNotes) {
-    const elButton = document.createElement("button");
-    elButton.type = "button";
-    elButton.className = "inventory-note";
-    elButton.textContent = formatNoteLabel(sFileName);
-    elButton.addEventListener("click", () => {
-      void openNote(sFileName);
-    });
-    elInventoryNotesList.appendChild(elButton);
-  }
 }
 
 function persistInventory(): void {
   saveInventoryToCookie({
     rocks: player.rocks,
     wood: player.wood,
-    notes: [...player.notes],
     collectedTreeNotes: terrain.getCollectedTreeNotes(),
   });
 }
 
 const oSavedInventory = loadInventoryFromCookie();
 if (oSavedInventory !== null) {
-  player.setInventory(
-    oSavedInventory.rocks,
-    oSavedInventory.wood,
-    oSavedInventory.notes,
-  );
+  player.setInventory(oSavedInventory.rocks, oSavedInventory.wood);
   terrain.setCollectedTreeNotes(oSavedInventory.collectedTreeNotes);
 }
 updateInventoryHud();
 
-function showNotePanel(sText: string): void {
-  elNoteText.textContent = sText;
+function showNotePanel(sMarkdown: string): void {
+  elNoteText.innerHTML = renderNoteHtml(sMarkdown);
+  elNoteBackdrop.hidden = false;
+  elNotePanel.hidden = false;
+  bNotePanelOpen = true;
+}
+
+function showNotePanelMessage(sMessage: string): void {
+  elNoteText.textContent = sMessage;
+  elNoteBackdrop.hidden = false;
   elNotePanel.hidden = false;
   bNotePanelOpen = true;
 }
 
 function hideNotePanel(): void {
+  elNoteBackdrop.hidden = true;
   elNotePanel.hidden = true;
   bNotePanelOpen = false;
 }
 
+elNoteBackdrop.addEventListener("click", hideNotePanel);
+
 async function openNote(sFileName: string): Promise<void> {
   try {
-    const sText = await loadNoteText(sFileName);
-    showNotePanel(sText);
+    const sMarkdown = await loadNoteText(sFileName);
+    showNotePanel(sMarkdown);
   } catch {
-    showNotePanel("This note is missing.");
+    showNotePanelMessage("This note is missing.");
   }
 }
 
@@ -207,8 +197,6 @@ async function collectHighlightedTreeNote(): Promise<void> {
     return;
   }
 
-  player.collectNote(sNoteFile);
-  updateInventoryHud();
   persistInventory();
   await openNote(sNoteFile);
 }

@@ -1,0 +1,1 @@
+The tall man says the trees are just the bars of a cage. He says the roof is coming down soon. When the sun goes away, he's going to open the door and let the dark inside us. I told him I wanted to go home and he laughed. It sounded like dry leaves scraping on cement.
