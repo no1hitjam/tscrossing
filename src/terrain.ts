@@ -4,11 +4,15 @@ import { SimplexNoise } from "three/addons/math/SimplexNoise.js";
 const CHUNK_SIZE = 32;
 const CHUNK_SEGMENTS = 16;
 const TEXTURE_TILE_UV_SIZE = 0.25;
-const HEIGHT_SCALE = 3;
+const HEIGHT_SCALE = 2;
 const NOISE_SCALE = 0.08;
 const OCTAVES = 4;
 const PERSISTENCE = 0.5;
 const LACUNARITY = 2;
+const MACRO_NOISE_SCALE = 0.012;
+const MACRO_HEIGHT_SCALE = 5;
+const MACRO_NOISE_OFFSET = 500;
+const TERRAIN_HEIGHT_RANGE = MACRO_HEIGHT_SCALE + HEIGHT_SCALE;
 
 const DIRT_TILE_CHANCE = 0.1;
 const CHUNK_PADDING = 2;
@@ -172,20 +176,26 @@ export class Terrain {
   }
 
   sampleHeight(fX: number, fZ: number): number {
+    const fMacro =
+      this.oNoise.noise(
+        fX * MACRO_NOISE_SCALE + MACRO_NOISE_OFFSET,
+        fZ * MACRO_NOISE_SCALE + MACRO_NOISE_OFFSET,
+      ) * MACRO_HEIGHT_SCALE;
+
     let fAmplitude = 1;
     let fFrequency = NOISE_SCALE;
-    let fHeight = 0;
+    let fDetail = 0;
     let fMaxAmplitude = 0;
 
     for (let octave = 0; octave < OCTAVES; octave++) {
-      fHeight +=
+      fDetail +=
         this.oNoise.noise(fX * fFrequency, fZ * fFrequency) * fAmplitude;
       fMaxAmplitude += fAmplitude;
       fAmplitude *= PERSISTENCE;
       fFrequency *= LACUNARITY;
     }
 
-    return (fHeight / fMaxAmplitude) * HEIGHT_SCALE;
+    return fMacro + (fDetail / fMaxAmplitude) * HEIGHT_SCALE;
   }
 
   sampleHeightAt(fX: number, fZ: number): number {
@@ -219,12 +229,12 @@ export class Terrain {
       for (let nChunkX = nMinChunkX; nChunkX <= nMaxChunkX; nChunkX++) {
         this.oChunkBounds.min.set(
           nChunkX * CHUNK_SIZE - CHUNK_SIZE * 0.5,
-          -HEIGHT_SCALE,
+          -TERRAIN_HEIGHT_RANGE,
           nChunkZ * CHUNK_SIZE - CHUNK_SIZE * 0.5,
         );
         this.oChunkBounds.max.set(
           nChunkX * CHUNK_SIZE + CHUNK_SIZE * 0.5,
-          HEIGHT_SCALE,
+          TERRAIN_HEIGHT_RANGE,
           nChunkZ * CHUNK_SIZE + CHUNK_SIZE * 0.5,
         );
 
