@@ -6,9 +6,14 @@ const PLAYER_HEIGHT = 1.6;
 const PLAYER_RADIUS = 0.35;
 const CAPSULE_LENGTH = 0.8;
 const fBodyCenterY = CAPSULE_LENGTH * 0.5 + PLAYER_RADIUS;
+const CROSSHAIR_DISTANCE = 0.5;
+const CROSSHAIR_LIFT = 0.46;
+const CROSSHAIR_ARM = 0.35;
+const CROSSHAIR_THICKNESS = 0.05;
 
 export class Player {
   readonly mesh: THREE.Group;
+  readonly crosshair: THREE.Group;
   private readonly vVelocity = new THREE.Vector3();
   private readonly fnSampleHeight: (fX: number, fZ: number) => number | null;
   private readonly fnIsBlocked: (fX: number, fZ: number) => boolean;
@@ -39,6 +44,23 @@ export class Player {
     head.castShadow = true;
     head.position.y = PLAYER_HEIGHT - 0.15;
     this.mesh.add(head);
+
+    this.crosshair = new THREE.Group();
+    const crosshairMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.9,
+    });
+    const crosshairBarGeometry = new THREE.BoxGeometry(
+      CROSSHAIR_ARM,
+      CROSSHAIR_THICKNESS,
+      CROSSHAIR_THICKNESS,
+    );
+    const crosshairBarX = new THREE.Mesh(crosshairBarGeometry, crosshairMaterial);
+    const crosshairBarZ = new THREE.Mesh(crosshairBarGeometry, crosshairMaterial);
+    crosshairBarZ.rotation.y = Math.PI * 0.5;
+    this.crosshair.add(crosshairBarX, crosshairBarZ);
+    this.updateCrosshairPosition(0, 0);
   }
 
   update(
@@ -93,6 +115,20 @@ export class Player {
     }
 
     this.applyTerrainHeight(this.mesh.position.x, this.mesh.position.z);
+    this.updateCrosshairPosition(this.mesh.position.x, this.mesh.position.z);
+  }
+
+  private updateCrosshairPosition(fPlayerX: number, fPlayerZ: number): void {
+    const fForwardX = Math.sin(this.fYaw);
+    const fForwardZ = Math.cos(this.fYaw);
+    const fCrossX = fPlayerX + fForwardX * CROSSHAIR_DISTANCE;
+    const fCrossZ = fPlayerZ + fForwardZ * CROSSHAIR_DISTANCE;
+    const fHeight = this.fnSampleHeight(fCrossX, fCrossZ);
+    if (fHeight === null) {
+      return;
+    }
+
+    this.crosshair.position.set(fCrossX, fHeight + CROSSHAIR_LIFT, fCrossZ);
   }
 
   private applyTerrainHeight(fX: number, fZ: number): void {

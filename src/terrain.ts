@@ -26,6 +26,8 @@ const ROCK_EMBED_DEPTH = TILE_SIZE * 0.35;
 const TREE_HEIGHT = TILE_SIZE * 3.5;
 const TREE_BASE_SIZE = TILE_SIZE * 0.55;
 const TREE_EMBED_DEPTH = TILE_SIZE * 0.15;
+const HIGHLIGHT_EMISSIVE = 0x999999;
+const HIGHLIGHT_EMISSIVE_INTENSITY = 0.15;
 const CHUNK_PADDING = 2;
 const MAX_ACTIVE_CHUNKS = 50;
 const QUADS_UPDATED_PER_FRAME = 4;
@@ -38,9 +40,20 @@ const A_NDC_CORNERS: ReadonlyArray<readonly [number, number]> = [
 ];
 
 type SampleHeightFn = (fX: number, fZ: number) => number;
+type TileFeature = "rock" | "tree";
+type RegisterFeatureMeshFn = (
+  nTileX: number,
+  nTileZ: number,
+  eFeature: TileFeature,
+  oMesh: THREE.Mesh,
+) => string;
 
 function chunkKey(nChunkX: number, nChunkZ: number): string {
   return `${nChunkX},${nChunkZ}`;
+}
+
+function featureTileKey(nTileX: number, nTileZ: number): string {
+  return `${nTileX},${nTileZ}`;
 }
 
 function worldToChunkIndex(fWorld: number): number {
@@ -55,6 +68,7 @@ class TerrainChunk {
   private readonly oRockTemplateGeometry: THREE.BufferGeometry;
   private readonly oTreeTemplateGeometry: THREE.BufferGeometry;
   private readonly fTileUvSize: number;
+  private readonly aRegisteredTileKeys: string[] = [];
 
   constructor(
     nChunkX: number,
@@ -63,6 +77,7 @@ class TerrainChunk {
     oRockMaterial: THREE.Material,
     oTreeMaterial: THREE.Material,
     fnSampleHeight: SampleHeightFn,
+    fnRegisterFeatureMesh: RegisterFeatureMeshFn,
   ) {
     const fTileUvSize = TEXTURE_TILE_UV_SIZE;
     const fCenterX = nChunkX * CHUNK_SIZE;
@@ -110,8 +125,24 @@ class TerrainChunk {
       TREE_HEIGHT,
       TREE_TOP_SCALE,
     );
-    this.buildRocks(nChunkX, nChunkZ, oRockMaterial, fnSampleHeight);
-    this.buildTrees(nChunkX, nChunkZ, oTreeMaterial, fnSampleHeight);
+    this.buildRocks(
+      nChunkX,
+      nChunkZ,
+      oRockMaterial,
+      fnSampleHeight,
+      fnRegisterFeatureMesh,
+    );
+    this.buildTrees(
+      nChunkX,
+      nChunkZ,
+      oTreeMaterial,
+      fnSampleHeight,
+      fnRegisterFeatureMesh,
+    );
+  }
+
+  get registeredTileKeys(): readonly string[] {
+    return this.aRegisteredTileKeys;
   }
 
   private buildRocks(
@@ -119,6 +150,7 @@ class TerrainChunk {
     nChunkZ: number,
     oRockMaterial: THREE.Material,
     fnSampleHeight: SampleHeightFn,
+    fnRegisterFeatureMesh: RegisterFeatureMeshFn,
   ): void {
     const fHalfChunk = CHUNK_SIZE * 0.5;
     const fRockCenterY = TILE_SIZE * 0.5 - ROCK_EMBED_DEPTH;
@@ -145,6 +177,9 @@ class TerrainChunk {
         oRock.castShadow = true;
         oRock.receiveShadow = true;
         this.root.add(oRock);
+        this.aRegisteredTileKeys.push(
+          fnRegisterFeatureMesh(nTileX, nTileZ, "rock", oRock),
+        );
       }
     }
   }
@@ -154,6 +189,7 @@ class TerrainChunk {
     nChunkZ: number,
     oTreeMaterial: THREE.Material,
     fnSampleHeight: SampleHeightFn,
+    fnRegisterFeatureMesh: RegisterFeatureMeshFn,
   ): void {
     const fHalfChunk = CHUNK_SIZE * 0.5;
     const fTreeCenterY = TREE_HEIGHT * 0.5 - TREE_EMBED_DEPTH;
@@ -185,6 +221,9 @@ class TerrainChunk {
         oTree.castShadow = true;
         oTree.receiveShadow = true;
         this.root.add(oTree);
+        this.aRegisteredTileKeys.push(
+          fnRegisterFeatureMesh(nTileX, nTileZ, "tree", oTree),
+        );
       }
     }
   }
@@ -227,6 +266,10 @@ export class Terrain {
   private readonly mProjScreenMatrix = new THREE.Matrix4();
   private readonly oChunkBounds = new THREE.Box3();
   private readonly vChunkCenter = new THREE.Vector3();
+  private readonly mFeatureMeshes = new Map<string, THREE.Mesh>();
+  private readonly oRockHighlightMaterial: THREE.MeshStandardMaterial;
+  private readonly oTreeHighlightMaterial: THREE.MeshStandardMaterial;
+  private oHighlightedMesh: THREE.Mesh | null = null;
 
   constructor() {
     const oGrassTexture = new THREE.TextureLoader().load("/grass.png");
@@ -269,6 +312,14 @@ export class Terrain {
       map: oTreeBarkTexture,
       flatShading: true,
     });
+
+    this.oRockHighlightMaterial = this.oRockMaterial.clone() as THREE.MeshStandardMaterial;
+    this.oRockHighlightMaterial.emissive.setHex(HIGHLIGHT_EMISSIVE);
+    this.oRockHighlightMaterial.emissiveIntensity = HIGHLIGHT_EMISSIVE_INTENSITY;
+
+    this.oTreeHighlightMaterial = this.oTreeMaterial.clone() as THREE.MeshStandardMaterial;
+    this.oTreeHighlightMaterial.emissive.setHex(HIGHLIGHT_EMISSIVE);
+    this.oTreeHighlightMaterial.emissiveIntensity = HIGHLIGHT_EMISSIVE_INTENSITY;
   }
 
   update(oCamera: THREE.Camera): void {
@@ -288,6 +339,7 @@ export class Terrain {
         this.oRockMaterial,
         this.oTreeMaterial,
         this.sampleHeight.bind(this),
+        this.registerFeatureMesh.bind(this),
       );
       this.mChunks.set(sKey, oChunk);
       this.root.add(oChunk.root);
@@ -299,6 +351,7 @@ export class Terrain {
       }
 
       this.root.remove(oChunk.root);
+      this.unregisterFeatureMeshes(oChunk.registeredTileKeys);
       oChunk.dispose();
       this.mChunks.delete(sKey);
     }
@@ -354,6 +407,75 @@ export class Terrain {
 
   isBlockedAt(fWorldX: number, fWorldZ: number): boolean {
     return this.hasRockAt(fWorldX, fWorldZ) || this.hasTreeAt(fWorldX, fWorldZ);
+  }
+
+  getFeatureAt(fWorldX: number, fWorldZ: number): TileFeature | null {
+    if (this.hasRockAt(fWorldX, fWorldZ)) {
+      return "rock";
+    }
+
+    if (this.hasTreeAt(fWorldX, fWorldZ)) {
+      return "tree";
+    }
+
+    return null;
+  }
+
+  updateTargetHighlight(fWorldX: number, fWorldZ: number): void {
+    const { nTileX, nTileZ } = worldToTileCoords(fWorldX, fWorldZ);
+    const oMesh =
+      this.mFeatureMeshes.get(featureTileKey(nTileX, nTileZ)) ?? null;
+
+    if (oMesh === this.oHighlightedMesh) {
+      return;
+    }
+
+    this.clearTargetHighlight();
+
+    if (oMesh === null) {
+      return;
+    }
+
+    const eFeature = oMesh.userData.eFeature as TileFeature;
+    oMesh.material =
+      eFeature === "rock"
+        ? this.oRockHighlightMaterial
+        : this.oTreeHighlightMaterial;
+    this.oHighlightedMesh = oMesh;
+  }
+
+  private registerFeatureMesh(
+    nTileX: number,
+    nTileZ: number,
+    eFeature: TileFeature,
+    oMesh: THREE.Mesh,
+  ): string {
+    oMesh.userData.eFeature = eFeature;
+    const sTileKey = featureTileKey(nTileX, nTileZ);
+    this.mFeatureMeshes.set(sTileKey, oMesh);
+    return sTileKey;
+  }
+
+  private unregisterFeatureMeshes(aTileKeys: readonly string[]): void {
+    for (const sTileKey of aTileKeys) {
+      const oMesh = this.mFeatureMeshes.get(sTileKey);
+      if (oMesh === this.oHighlightedMesh) {
+        this.clearTargetHighlight();
+      }
+
+      this.mFeatureMeshes.delete(sTileKey);
+    }
+  }
+
+  private clearTargetHighlight(): void {
+    if (this.oHighlightedMesh === null) {
+      return;
+    }
+
+    const eFeature = this.oHighlightedMesh.userData.eFeature as TileFeature;
+    this.oHighlightedMesh.material =
+      eFeature === "rock" ? this.oRockMaterial : this.oTreeMaterial;
+    this.oHighlightedMesh = null;
   }
 
   private getDesiredChunkKeys(oCamera: THREE.Camera): string[] {

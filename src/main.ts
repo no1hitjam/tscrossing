@@ -100,6 +100,7 @@ const player = new Player(
   terrain.isBlockedAt.bind(terrain),
 );
 scene.add(player.mesh);
+scene.add(player.crosshair);
 
 const pappusParticles = new PappusParticles(
   terrain.sampleHeightAt.bind(terrain),
@@ -148,6 +149,10 @@ function animate(): void {
   );
 
   terrain.update(camera);
+  terrain.updateTargetHighlight(
+    player.crosshair.position.x,
+    player.crosshair.position.z,
+  );
   updateShadowLight();
   pappusParticles.update(dt, camera, player.position);
   helicopterSeedParticles.update(dt, player.position);
