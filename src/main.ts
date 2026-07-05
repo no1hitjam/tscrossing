@@ -1,5 +1,9 @@
 import * as THREE from "three";
 import { HelicopterSeedParticles } from "./helicopter-seed-particles";
+import {
+  loadInventoryFromCookie,
+  saveInventoryToCookie,
+} from "./inventory-cookie";
 import { PappusParticles } from "./pappus-particles";
 import { Player } from "./player";
 import { Terrain } from "./terrain";
@@ -135,6 +139,16 @@ function updateInventoryHud(): void {
   elInventoryWood.textContent = String(player.wood);
 }
 
+function persistInventory(): void {
+  saveInventoryToCookie(player.rocks, player.wood);
+}
+
+const oSavedInventory = loadInventoryFromCookie();
+if (oSavedInventory !== null) {
+  player.setInventory(oSavedInventory.rocks, oSavedInventory.wood);
+}
+updateInventoryHud();
+
 function updateShadowLight(): void {
   sunLight.position.set(
     player.position.x + 12,
@@ -170,6 +184,7 @@ function animate(): void {
     if (eDestroyed !== null) {
       player.collectResource(eDestroyed);
       updateInventoryHud();
+      persistInventory();
     }
   }
   bSpaceWasDown = bSpaceDown;

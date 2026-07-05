@@ -159,6 +159,11 @@ export class Player {
     return this.nWood;
   }
 
+  setInventory(nRocks: number, nWood: number): void {
+    this.nRocks = nRocks;
+    this.nWood = nWood;
+  }
+
   collectResource(eResource: "rock" | "tree"): void {
     if (eResource === "rock") {
       this.nRocks += RESOURCE_YIELD;
