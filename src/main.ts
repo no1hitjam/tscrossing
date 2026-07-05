@@ -7,6 +7,7 @@ import {
 import { PappusParticles } from "./pappus-particles";
 import { Player } from "./player";
 import { Terrain } from "./terrain";
+import { DynamicMusic } from "./dynamic-music";
 import { loadNoteText, renderNoteHtml } from "./tree-notes";
 
 const GAME_KEY_CODES = new Set([
@@ -25,6 +26,19 @@ const GAME_KEY_CODES = new Set([
 
 const keys: Record<string, boolean> = {};
 
+function isPlayerMoving(): boolean {
+  return !!(
+    keys["KeyW"] ||
+    keys["KeyA"] ||
+    keys["KeyS"] ||
+    keys["KeyD"] ||
+    keys["ArrowUp"] ||
+    keys["ArrowDown"] ||
+    keys["ArrowLeft"] ||
+    keys["ArrowRight"]
+  );
+}
+
 function clearKeys(): void {
   for (const code of Object.keys(keys)) {
     keys[code] = false;
@@ -36,6 +50,7 @@ function onKeyDown(event: KeyboardEvent): void {
     event.preventDefault();
   }
   keys[event.code] = true;
+  void startMusic();
 }
 
 function onKeyUp(event: KeyboardEvent): void {
@@ -51,6 +66,9 @@ window.addEventListener("blur", clearKeys);
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
     clearKeys();
+    void oDynamicMusic.suspend();
+  } else {
+    void oDynamicMusic.resume();
   }
 });
 
@@ -77,11 +95,30 @@ renderer.domElement.tabIndex = 0;
 renderer.domElement.style.outline = "none";
 document.body.appendChild(renderer.domElement);
 
+const oDynamicMusic = new DynamicMusic();
+let bMusicStarted = false;
+
+async function startMusic(): Promise<void> {
+  if (bMusicStarted) {
+    return;
+  }
+
+  bMusicStarted = true;
+  try {
+    await oDynamicMusic.start();
+  } catch {
+    bMusicStarted = false;
+  }
+}
+
 function focusGame(): void {
   renderer.domElement.focus();
 }
 
-renderer.domElement.addEventListener("pointerdown", focusGame);
+renderer.domElement.addEventListener("pointerdown", () => {
+  focusGame();
+  void startMusic();
+});
 window.addEventListener("load", focusGame);
 focusGame();
 
@@ -252,6 +289,9 @@ function animate(): void {
   updateShadowLight();
   pappusParticles.update(dt, camera, player.position);
   helicopterSeedParticles.update(dt, player.position);
+
+  oDynamicMusic.setPlayerMoving(isPlayerMoving());
+  oDynamicMusic.update();
 
   renderer.render(scene, camera);
 }

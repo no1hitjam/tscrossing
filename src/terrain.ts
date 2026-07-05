@@ -37,6 +37,7 @@ const TREE_BRANCH_HEIGHT_MIN = 0.3;
 const TREE_BRANCH_HEIGHT_RANGE = 0.58;
 const TREE_EMBED_DEPTH = TILE_SIZE * 0.15;
 const TREE_NOTE_MARKER_SIZE = TILE_SIZE * 0.14;
+const TREE_NOTE_MARKER_COLOR = 0xdcd8d0;
 const TREE_NOTE_MARKER_HEIGHT_FRACTION = 0.25;
 const TREE_NOTE_MARKER_Z_OFFSET = 0.02;
 const HIGHLIGHT_EMISSIVE = 0x999999;
@@ -407,7 +408,9 @@ export class Terrain {
       TREE_NOTE_MARKER_SIZE,
       TREE_NOTE_MARKER_SIZE,
     );
-    this.oNoteMarkerMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    this.oNoteMarkerMaterial = new THREE.MeshBasicMaterial({
+      color: TREE_NOTE_MARKER_COLOR,
+    });
   }
 
   update(oCamera: THREE.Camera, fDt = 0): void {
