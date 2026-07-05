@@ -1,7 +1,11 @@
-const TONE_SAMPLE_URL = "/music/tone_c_0.mp3";
+const TONE_SAMPLE_URL = "/sounds/tone_c_0.mp3";
+const CHOP_WOOD_URL = "/sounds/chop_wood.mp3";
+const PICK_AXE_URL = "/sounds/pick_axe.mp3";
 const LOOK_AHEAD_SECONDS = 0.15;
 const MASTER_GAIN = 0.35;
 const NOTE_GAIN = 0.55;
+const CHOP_WOOD_GAIN = 1.85;
+const PICK_AXE_GAIN = 2.85;
 
 const SEMITONE_RATIO = 2 ** (1 / 12);
 
@@ -19,6 +23,8 @@ export class DynamicMusic {
   private oAudioContext: AudioContext | null = null;
   private oMasterGain: GainNode | null = null;
   private oToneBuffer: AudioBuffer | null = null;
+  private oChopWoodBuffer: AudioBuffer | null = null;
+  private oPickAxeBuffer: AudioBuffer | null = null;
   private fNextNoteTime = 0;
   private nPatternIndex = 0;
   private bRunning = false;
@@ -34,17 +40,59 @@ export class DynamicMusic {
     oMasterGain.gain.value = MASTER_GAIN;
     oMasterGain.connect(oAudioContext.destination);
 
-    const oResponse = await fetch(TONE_SAMPLE_URL);
-    if (!oResponse.ok) {
-      throw new Error(`Failed to load tone sample: ${TONE_SAMPLE_URL}`);
-    }
-
-    const oArrayBuffer = await oResponse.arrayBuffer();
-    const oToneBuffer = await oAudioContext.decodeAudioData(oArrayBuffer);
+    const [oToneBuffer, oChopWoodBuffer, oPickAxeBuffer] = await Promise.all([
+      this.loadBuffer(oAudioContext, TONE_SAMPLE_URL),
+      this.loadBuffer(oAudioContext, CHOP_WOOD_URL),
+      this.loadBuffer(oAudioContext, PICK_AXE_URL),
+    ]);
 
     this.oAudioContext = oAudioContext;
     this.oMasterGain = oMasterGain;
     this.oToneBuffer = oToneBuffer;
+    this.oChopWoodBuffer = oChopWoodBuffer;
+    this.oPickAxeBuffer = oPickAxeBuffer;
+  }
+
+  async playChopWood(): Promise<void> {
+    await this.playOneShot(() => this.oChopWoodBuffer, CHOP_WOOD_GAIN);
+  }
+
+  async playPickAxe(): Promise<void> {
+    await this.playOneShot(() => this.oPickAxeBuffer, PICK_AXE_GAIN);
+  }
+
+  private async playOneShot(
+    fnGetBuffer: () => AudioBuffer | null,
+    fGain: number,
+  ): Promise<void> {
+    if (this.oAudioContext === null || fnGetBuffer() === null) {
+      try {
+        await this.init();
+      } catch {
+        return;
+      }
+    }
+
+    const oBuffer = fnGetBuffer();
+    if (
+      this.oAudioContext === null ||
+      oBuffer === null ||
+      this.oMasterGain === null
+    ) {
+      return;
+    }
+
+    await this.oAudioContext.resume();
+
+    const oSource = this.oAudioContext.createBufferSource();
+    oSource.buffer = oBuffer;
+
+    const oGain = this.oAudioContext.createGain();
+    oGain.gain.value = fGain;
+    oSource.connect(oGain);
+    oGain.connect(this.oMasterGain);
+
+    oSource.start();
   }
 
   async start(): Promise<void> {
@@ -134,5 +182,18 @@ export class DynamicMusic {
     oNoteGain.connect(this.oMasterGain);
 
     oSource.start(fWhen);
+  }
+
+  private async loadBuffer(
+    oAudioContext: AudioContext,
+    sUrl: string,
+  ): Promise<AudioBuffer> {
+    const oResponse = await fetch(sUrl);
+    if (!oResponse.ok) {
+      throw new Error(`Failed to load sound: ${sUrl}`);
+    }
+
+    const oArrayBuffer = await oResponse.arrayBuffer();
+    return oAudioContext.decodeAudioData(oArrayBuffer);
   }
 }

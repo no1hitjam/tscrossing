@@ -62,6 +62,11 @@ const A_NDC_CORNERS: ReadonlyArray<readonly [number, number]> = [
 
 type SampleHeightFn = (fX: number, fZ: number) => number;
 export type TileFeature = "rock" | "tree";
+
+export type FeatureDamageResult = {
+  eFeature: TileFeature;
+  bDestroyed: boolean;
+};
 type RegisterFeatureMeshFn = (
   nTileX: number,
   nTileZ: number,
@@ -595,7 +600,7 @@ export class Terrain {
     return sNoteFile;
   }
 
-  damageHighlightedFeature(): TileFeature | null {
+  damageHighlightedFeature(): FeatureDamageResult | null {
     if (this.sHighlightedTileKey === null || this.oHighlightedMesh === null) {
       return null;
     }
@@ -607,11 +612,11 @@ export class Terrain {
 
     if (nHealth <= 0) {
       this.destroyFeature(sTileKey);
-      return eFeature;
+      return { eFeature, bDestroyed: true };
     }
 
     this.mFeatureHealth.set(sTileKey, nHealth);
-    return null;
+    return { eFeature, bDestroyed: false };
   }
 
   private addTreeNoteMarker(

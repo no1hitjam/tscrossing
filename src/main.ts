@@ -270,11 +270,18 @@ function animate(): void {
     } else if (terrain.getHighlightedTreeNoteFile() !== null) {
       void collectHighlightedTreeNote();
     } else {
-      const eDestroyed = terrain.damageHighlightedFeature();
-      if (eDestroyed !== null) {
-        player.collectResource(eDestroyed);
-        updateInventoryHud();
-        persistInventory();
+      const oDamage = terrain.damageHighlightedFeature();
+      if (oDamage !== null) {
+        if (oDamage.eFeature === "tree") {
+          void oDynamicMusic.playChopWood();
+        } else if (oDamage.eFeature === "rock") {
+          void oDynamicMusic.playPickAxe();
+        }
+        if (oDamage.bDestroyed) {
+          player.collectResource(oDamage.eFeature);
+          updateInventoryHud();
+          persistInventory();
+        }
       }
     }
   }
