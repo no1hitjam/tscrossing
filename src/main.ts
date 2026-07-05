@@ -46,7 +46,7 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 
-const WORLD_SIZE = 160;
+const SHADOW_HALF_EXTENT = 40;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb);
@@ -81,17 +81,17 @@ const ambientLight = new THREE.AmbientLight(0xffffff, 0.55);
 scene.add(ambientLight);
 
 const sunLight = new THREE.DirectionalLight(0xffffff, 1.1);
-sunLight.position.set(12, 18, 8);
 sunLight.castShadow = true;
 sunLight.shadow.mapSize.set(2048, 2048);
-sunLight.shadow.camera.left = -100;
-sunLight.shadow.camera.right = 100;
-sunLight.shadow.camera.top = 100;
-sunLight.shadow.camera.bottom = -100;
+sunLight.shadow.camera.left = -SHADOW_HALF_EXTENT;
+sunLight.shadow.camera.right = SHADOW_HALF_EXTENT;
+sunLight.shadow.camera.top = SHADOW_HALF_EXTENT;
+sunLight.shadow.camera.bottom = -SHADOW_HALF_EXTENT;
 scene.add(sunLight);
+scene.add(sunLight.target);
 
-const terrain = new Terrain(WORLD_SIZE);
-scene.add(terrain.mesh);
+const terrain = new Terrain();
+scene.add(terrain.root);
 
 const player = new Player(terrain.sampleHeightAt.bind(terrain));
 scene.add(player.mesh);
@@ -109,12 +109,21 @@ window.addEventListener("resize", () => {
 
 const clock = new THREE.Clock();
 
+function updateShadowLight(): void {
+  sunLight.position.set(
+    player.position.x + 12,
+    18,
+    player.position.z + 8,
+  );
+  sunLight.target.position.copy(player.position);
+  sunLight.target.updateMatrixWorld();
+}
+
 function animate(): void {
   requestAnimationFrame(animate);
 
   const dt = Math.min(clock.getDelta(), 0.05);
   player.update(dt, keys, fCameraYaw);
-  terrain.update();
 
   camera.position.copy(player.position).add(vCameraOffset);
   camera.lookAt(
@@ -122,6 +131,9 @@ function animate(): void {
     player.position.y,
     player.position.z,
   );
+
+  terrain.update(camera);
+  updateShadowLight();
 
   renderer.render(scene, camera);
 }
