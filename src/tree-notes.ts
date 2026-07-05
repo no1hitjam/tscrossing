@@ -1,6 +1,27 @@
 import { marked } from "marked";
 
-const A_NOTE_FILES = ["Note1.md", "Note2.md", "Note3.md", "Note4.md"] as const;
+const A_NOTE_FILES = [
+  "Note1.md",
+  "Note2.md",
+  "Note3.md",
+  "Note4.md",
+  "Note5.md",
+  "Note6.md",
+  "Note7.md",
+  "Note8.md",
+  "Note9.md",
+  "Note10.md",
+  "Note11.md",
+  "Note12.md",
+  "Note13.md",
+  "Note14.md",
+  "Note15.md",
+  "Note16.md",
+  "Note17.md",
+  "Note18.md",
+  "Note19.md",
+  "Note20.md",
+] as const;
 
 export type NoteFileName = (typeof A_NOTE_FILES)[number];
 

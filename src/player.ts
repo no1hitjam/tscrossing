@@ -5,15 +5,12 @@ const SPRINT_MULTIPLIER = 1.75;
 const PLAYER_HEIGHT = 1.6;
 const PLAYER_BASE_RADIUS = 0.45;
 const PLAYER_TOP_RADIUS = 0.18;
-const CROSSHAIR_DISTANCE = 0.5;
-const CROSSHAIR_LIFT = 0.46;
-const CROSSHAIR_ARM = 0.35;
-const CROSSHAIR_THICKNESS = 0.05;
+const TARGET_DISTANCE = 0.5;
 const RESOURCE_YIELD = 3;
 
 export class Player {
   readonly mesh: THREE.Group;
-  readonly crosshair: THREE.Group;
+  readonly vTarget = new THREE.Vector3();
   private readonly vVelocity = new THREE.Vector3();
   private readonly fnSampleHeight: (fX: number, fZ: number) => number | null;
   private readonly fnIsBlocked: (fX: number, fZ: number) => boolean;
@@ -52,22 +49,7 @@ export class Player {
     body.position.y = PLAYER_HEIGHT * 0.5;
     this.mesh.add(body);
 
-    this.crosshair = new THREE.Group();
-    const crosshairMaterial = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0.9,
-    });
-    const crosshairBarGeometry = new THREE.BoxGeometry(
-      CROSSHAIR_ARM,
-      CROSSHAIR_THICKNESS,
-      CROSSHAIR_THICKNESS,
-    );
-    const crosshairBarX = new THREE.Mesh(crosshairBarGeometry, crosshairMaterial);
-    const crosshairBarZ = new THREE.Mesh(crosshairBarGeometry, crosshairMaterial);
-    crosshairBarZ.rotation.y = Math.PI * 0.5;
-    this.crosshair.add(crosshairBarX, crosshairBarZ);
-    this.updateCrosshairPosition(0, 0);
+    this.updateTargetPosition(0, 0);
   }
 
   update(
@@ -122,20 +104,17 @@ export class Player {
     }
 
     this.applyTerrainHeight(this.mesh.position.x, this.mesh.position.z);
-    this.updateCrosshairPosition(this.mesh.position.x, this.mesh.position.z);
+    this.updateTargetPosition(this.mesh.position.x, this.mesh.position.z);
   }
 
-  private updateCrosshairPosition(fPlayerX: number, fPlayerZ: number): void {
+  private updateTargetPosition(fPlayerX: number, fPlayerZ: number): void {
     const fForwardX = Math.sin(this.fYaw);
     const fForwardZ = Math.cos(this.fYaw);
-    const fCrossX = fPlayerX + fForwardX * CROSSHAIR_DISTANCE;
-    const fCrossZ = fPlayerZ + fForwardZ * CROSSHAIR_DISTANCE;
-    const fHeight = this.fnSampleHeight(fCrossX, fCrossZ);
-    if (fHeight === null) {
-      return;
-    }
-
-    this.crosshair.position.set(fCrossX, fHeight + CROSSHAIR_LIFT, fCrossZ);
+    this.vTarget.set(
+      fPlayerX + fForwardX * TARGET_DISTANCE,
+      0,
+      fPlayerZ + fForwardZ * TARGET_DISTANCE,
+    );
   }
 
   private applyTerrainHeight(fX: number, fZ: number): void {

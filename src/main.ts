@@ -106,7 +106,6 @@ const player = new Player(
   terrain.isBlockedAt.bind(terrain),
 );
 scene.add(player.mesh);
-scene.add(player.crosshair);
 
 const pappusParticles = new PappusParticles(
   terrain.sampleHeightAt.bind(terrain),
@@ -225,10 +224,7 @@ function animate(): void {
   );
 
   terrain.update(camera, dt);
-  terrain.updateTargetHighlight(
-    player.crosshair.position.x,
-    player.crosshair.position.z,
-  );
+  terrain.updateTargetHighlight(player.vTarget.x, player.vTarget.z);
 
   const bSpaceDown = keys["Space"] ?? false;
   if (bSpaceDown && !bSpaceWasDown) {
