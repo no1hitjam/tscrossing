@@ -46,17 +46,17 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 
-const WORLD_SIZE = 40;
+const WORLD_SIZE = 160;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb);
-scene.fog = new THREE.Fog(0x87ceeb, 30, 70);
+scene.fog = new THREE.Fog(0x87ceeb, 120, 280);
 
 const camera = new THREE.PerspectiveCamera(
   60,
   window.innerWidth / window.innerHeight,
   0.1,
-  200,
+  800,
 );
 camera.position.set(0, 6, 10);
 
@@ -84,33 +84,14 @@ const sunLight = new THREE.DirectionalLight(0xffffff, 1.1);
 sunLight.position.set(12, 18, 8);
 sunLight.castShadow = true;
 sunLight.shadow.mapSize.set(2048, 2048);
-sunLight.shadow.camera.left = -25;
-sunLight.shadow.camera.right = 25;
-sunLight.shadow.camera.top = 25;
-sunLight.shadow.camera.bottom = -25;
+sunLight.shadow.camera.left = -100;
+sunLight.shadow.camera.right = 100;
+sunLight.shadow.camera.top = 100;
+sunLight.shadow.camera.bottom = -100;
 scene.add(sunLight);
 
 const terrain = new Terrain(WORLD_SIZE);
 scene.add(terrain.mesh);
-
-const propMaterial = new THREE.MeshStandardMaterial({ color: 0x8d6e63 });
-for (let i = 0; i < 12; i++) {
-  const size = 0.8 + Math.random() * 1.4;
-  const prop = new THREE.Mesh(
-    new THREE.BoxGeometry(size, size * 1.5, size),
-    propMaterial,
-  );
-  const fPropX = THREE.MathUtils.randFloatSpread(WORLD_SIZE * 0.7);
-  const fPropZ = THREE.MathUtils.randFloatSpread(WORLD_SIZE * 0.7);
-  prop.position.set(
-    fPropX,
-    terrain.sampleHeight(fPropX, fPropZ) + (size * 1.5) / 2,
-    fPropZ,
-  );
-  prop.castShadow = true;
-  prop.receiveShadow = true;
-  scene.add(prop);
-}
 
 const player = new Player(terrain.sampleHeightAt.bind(terrain));
 scene.add(player.mesh);
@@ -133,6 +114,7 @@ function animate(): void {
 
   const dt = Math.min(clock.getDelta(), 0.05);
   player.update(dt, keys, fCameraYaw);
+  terrain.update();
 
   camera.position.copy(player.position).add(vCameraOffset);
   camera.lookAt(
