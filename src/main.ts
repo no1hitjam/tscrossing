@@ -15,6 +15,7 @@ const GAME_KEY_CODES = new Set([
   "ArrowRight",
   "ShiftLeft",
   "ShiftRight",
+  "Space",
 ]);
 
 const keys: Record<string, boolean> = {};
@@ -124,6 +125,7 @@ window.addEventListener("resize", () => {
 });
 
 const clock = new THREE.Clock();
+let bSpaceWasDown = false;
 
 function updateShadowLight(): void {
   sunLight.position.set(
@@ -153,6 +155,13 @@ function animate(): void {
     player.crosshair.position.x,
     player.crosshair.position.z,
   );
+
+  const bSpaceDown = keys["Space"] ?? false;
+  if (bSpaceDown && !bSpaceWasDown) {
+    terrain.damageHighlightedFeature();
+  }
+  bSpaceWasDown = bSpaceDown;
+
   updateShadowLight();
   pappusParticles.update(dt, camera, player.position);
   helicopterSeedParticles.update(dt, player.position);
