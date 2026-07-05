@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { HelicopterSeedParticles } from "./helicopter-seed-particles";
+import { PappusParticles } from "./pappus-particles";
 import { Player } from "./player";
 import { Terrain } from "./terrain";
 
@@ -99,6 +101,16 @@ const player = new Player(
 );
 scene.add(player.mesh);
 
+const pappusParticles = new PappusParticles(
+  terrain.sampleHeightAt.bind(terrain),
+);
+scene.add(pappusParticles.root);
+
+const helicopterSeedParticles = new HelicopterSeedParticles(
+  terrain.sampleHeightAt.bind(terrain),
+);
+scene.add(helicopterSeedParticles.root);
+
 const CAMERA_HEIGHT = 10;
 const CAMERA_DISTANCE = 8;
 const vCameraOffset = new THREE.Vector3(0, CAMERA_HEIGHT, CAMERA_DISTANCE);
@@ -137,6 +149,8 @@ function animate(): void {
 
   terrain.update(camera);
   updateShadowLight();
+  pappusParticles.update(dt, camera, player.position);
+  helicopterSeedParticles.update(dt, player.position);
 
   renderer.render(scene, camera);
 }
