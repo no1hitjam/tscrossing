@@ -1,0 +1,83 @@
+import * as THREE from "three";
+
+const MOVE_SPEED = 6;
+const SPRINT_MULTIPLIER = 1.75;
+const GROUND_Y = 0;
+const PLAYER_HEIGHT = 1.6;
+const PLAYER_RADIUS = 0.35;
+
+export class Player {
+  readonly mesh: THREE.Group;
+  private readonly vVelocity = new THREE.Vector3();
+  private fYaw = 0;
+
+  constructor() {
+    this.mesh = new THREE.Group();
+    this.mesh.position.y = GROUND_Y + PLAYER_HEIGHT * 0.5;
+
+    const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x4caf50 });
+    const body = new THREE.Mesh(
+      new THREE.CapsuleGeometry(PLAYER_RADIUS, 0.8, 8, 16),
+      bodyMaterial,
+    );
+    body.castShadow = true;
+    body.position.y = PLAYER_HEIGHT * 0.5;
+    this.mesh.add(body);
+
+    const head = new THREE.Mesh(
+      new THREE.SphereGeometry(0.28, 16, 16),
+      new THREE.MeshStandardMaterial({ color: 0xffcc80 }),
+    );
+    head.castShadow = true;
+    head.position.y = PLAYER_HEIGHT - 0.15;
+    this.mesh.add(head);
+  }
+
+  update(
+    dt: number,
+    keys: Readonly<Record<string, boolean>>,
+    cameraYaw: number,
+  ): void {
+    const moveInput = new THREE.Vector2(
+      Number(keys["KeyD"] || keys["ArrowRight"]) -
+        Number(keys["KeyA"] || keys["ArrowLeft"]),
+      Number(keys["KeyW"] || keys["ArrowUp"]) -
+        Number(keys["KeyS"] || keys["ArrowDown"]),
+    );
+
+    if (moveInput.lengthSq() > 0) {
+      moveInput.normalize();
+      const forward = new THREE.Vector3(
+        -Math.sin(cameraYaw),
+        0,
+        -Math.cos(cameraYaw),
+      );
+      const right = new THREE.Vector3().crossVectors(
+        forward,
+        new THREE.Vector3(0, 1, 0),
+      );
+      const moveDir = new THREE.Vector3()
+        .addScaledVector(forward, moveInput.y)
+        .addScaledVector(right, moveInput.x)
+        .normalize();
+
+      const speed =
+        MOVE_SPEED * (keys["ShiftLeft"] || keys["ShiftRight"] ? SPRINT_MULTIPLIER : 1);
+      this.vVelocity.x = moveDir.x * speed;
+      this.vVelocity.z = moveDir.z * speed;
+
+      this.fYaw = Math.atan2(moveDir.x, moveDir.z);
+      this.mesh.rotation.y = this.fYaw;
+    } else {
+      this.vVelocity.x = 0;
+      this.vVelocity.z = 0;
+    }
+
+    this.mesh.position.x += this.vVelocity.x * dt;
+    this.mesh.position.z += this.vVelocity.z * dt;
+  }
+
+  get position(): THREE.Vector3 {
+    return this.mesh.position;
+  }
+}
