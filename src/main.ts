@@ -172,7 +172,7 @@ function animate(): void {
     player.position.z,
   );
 
-  terrain.update(camera);
+  terrain.update(camera, dt);
   terrain.updateTargetHighlight(
     player.crosshair.position.x,
     player.crosshair.position.z,

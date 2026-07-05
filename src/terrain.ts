@@ -32,6 +32,12 @@ const FEATURE_MAX_HEALTH = 4;
 const CHUNK_PADDING = 2;
 const MAX_ACTIVE_CHUNKS = 50;
 const QUADS_UPDATED_PER_FRAME = 4;
+const FOG_LAYER_OFFSET = 0.42;
+const FOG_UV_SCALE = 0.01;
+const FOG_OPACITY = 0.25;
+const FOG_COLOR = 0xf0e8f8;
+const FOG_UV_SCROLL_X = 0.015;
+const FOG_UV_SCROLL_Z = 0.008;
 
 const A_NDC_CORNERS: ReadonlyArray<readonly [number, number]> = [
   [-1, -1],
@@ -71,6 +77,7 @@ class TerrainChunk {
   readonly mesh: THREE.Mesh;
   readonly nQuadCount: number;
   private readonly geometry: THREE.BufferGeometry;
+  private readonly oFogGeometry: THREE.BufferGeometry;
   private readonly oRockTemplateGeometry: THREE.BufferGeometry;
   private readonly oTreeTemplateGeometry: THREE.BufferGeometry;
   private readonly fTileUvSize: number;
@@ -80,6 +87,7 @@ class TerrainChunk {
     nChunkX: number,
     nChunkZ: number,
     aMaterials: THREE.Material[],
+    oFogMaterial: THREE.Material,
     oRockMaterial: THREE.Material,
     oTreeMaterial: THREE.Material,
     fnSampleHeight: SampleHeightFn,
@@ -90,27 +98,17 @@ class TerrainChunk {
     const fCenterX = nChunkX * CHUNK_SIZE;
     const fCenterZ = nChunkZ * CHUNK_SIZE;
 
-    const geometry = new THREE.PlaneGeometry(
-      CHUNK_SIZE,
-      CHUNK_SIZE,
-      CHUNK_SEGMENTS,
-      CHUNK_SEGMENTS,
+    const geometry = createSampledPlaneGeometry(
+      fCenterX,
+      fCenterZ,
+      fnSampleHeight,
+      0,
     );
-    const positions = geometry.attributes.position;
-
-    for (let i = 0; i < positions.count; i++) {
-      const fLocalX = positions.getX(i);
-      const fLocalY = positions.getY(i);
-      const fWorldX = fCenterX + fLocalX;
-      const fWorldZ = fCenterZ - fLocalY;
-      positions.setZ(i, fnSampleHeight(fWorldX, fWorldZ));
-    }
-
-    positions.needsUpdate = true;
 
     const geometryNonIndexed = geometry.toNonIndexed();
     applyTileQuads(geometryNonIndexed, CHUNK_SEGMENTS, fTileUvSize);
     geometryNonIndexed.computeVertexNormals();
+    geometry.dispose();
 
     this.geometry = geometryNonIndexed;
     this.nQuadCount = CHUNK_SEGMENTS * CHUNK_SEGMENTS;
@@ -121,6 +119,20 @@ class TerrainChunk {
     this.mesh.receiveShadow = true;
     this.root.position.set(fCenterX, 0, fCenterZ);
     this.root.add(this.mesh);
+
+    this.oFogGeometry = createSampledPlaneGeometry(
+      fCenterX,
+      fCenterZ,
+      fnSampleHeight,
+      FOG_LAYER_OFFSET,
+    );
+    applyFogLayerUvs(this.oFogGeometry, fCenterX, fCenterZ);
+    this.oFogGeometry.computeVertexNormals();
+
+    const oFogMesh = new THREE.Mesh(this.oFogGeometry, oFogMaterial);
+    oFogMesh.rotation.x = -Math.PI / 2;
+    oFogMesh.renderOrder = 1;
+    this.root.add(oFogMesh);
 
     this.oRockTemplateGeometry = createTruncatedPyramidGeometry(
       TILE_SIZE,
@@ -252,6 +264,7 @@ class TerrainChunk {
 
   dispose(): void {
     this.geometry.dispose();
+    this.oFogGeometry.dispose();
     this.oRockTemplateGeometry.dispose();
     this.oTreeTemplateGeometry.dispose();
     this.root.traverse((oChild) => {
@@ -270,6 +283,8 @@ export class Terrain {
   readonly root = new THREE.Group();
   private readonly mChunks = new Map<string, TerrainChunk>();
   private readonly aMaterials: THREE.Material[];
+  private readonly oFogTexture: THREE.CanvasTexture;
+  private readonly oFogMaterial: THREE.Material;
   private readonly oRockMaterial: THREE.Material;
   private readonly oTreeMaterial: THREE.Material;
   private readonly oNoise = new SimplexNoise();
@@ -307,6 +322,15 @@ export class Terrain {
       }),
     ];
 
+    this.oFogTexture = createFogNoiseTexture();
+    this.oFogMaterial = new THREE.MeshBasicMaterial({
+      map: this.oFogTexture,
+      color: FOG_COLOR,
+      transparent: true,
+      opacity: FOG_OPACITY,
+      depthWrite: false,
+    });
+
     const oRockTexture = new THREE.TextureLoader().load("/rock.png");
     oRockTexture.wrapS = THREE.RepeatWrapping;
     oRockTexture.wrapT = THREE.RepeatWrapping;
@@ -336,7 +360,10 @@ export class Terrain {
     this.oTreeHighlightMaterial.emissiveIntensity = HIGHLIGHT_EMISSIVE_INTENSITY;
   }
 
-  update(oCamera: THREE.Camera): void {
+  update(oCamera: THREE.Camera, fDt = 0): void {
+    this.oFogTexture.offset.x += FOG_UV_SCROLL_X * fDt;
+    this.oFogTexture.offset.y += FOG_UV_SCROLL_Z * fDt;
+
     const aDesiredKeys = this.getDesiredChunkKeys(oCamera);
     const sDesiredSet = new Set(aDesiredKeys);
 
@@ -350,6 +377,7 @@ export class Terrain {
         nChunkX,
         nChunkZ,
         this.aMaterials,
+        this.oFogMaterial,
         this.oRockMaterial,
         this.oTreeMaterial,
         this.sampleHeight.bind(this),
@@ -617,6 +645,83 @@ export class Terrain {
 
     return aKeys;
   }
+}
+
+function createSampledPlaneGeometry(
+  fCenterX: number,
+  fCenterZ: number,
+  fnSampleHeight: SampleHeightFn,
+  fHeightOffset: number,
+): THREE.PlaneGeometry {
+  const geometry = new THREE.PlaneGeometry(
+    CHUNK_SIZE,
+    CHUNK_SIZE,
+    CHUNK_SEGMENTS,
+    CHUNK_SEGMENTS,
+  );
+  const positions = geometry.attributes.position;
+
+  for (let i = 0; i < positions.count; i++) {
+    const fLocalX = positions.getX(i);
+    const fLocalY = positions.getY(i);
+    const fWorldX = fCenterX + fLocalX;
+    const fWorldZ = fCenterZ - fLocalY;
+    positions.setZ(i, fnSampleHeight(fWorldX, fWorldZ) + fHeightOffset);
+  }
+
+  positions.needsUpdate = true;
+  return geometry;
+}
+
+function applyFogLayerUvs(
+  geometry: THREE.BufferGeometry,
+  fCenterX: number,
+  fCenterZ: number,
+): void {
+  const positions = geometry.attributes.position as THREE.BufferAttribute;
+  const uvs = geometry.attributes.uv as THREE.BufferAttribute;
+
+  for (let i = 0; i < positions.count; i++) {
+    const fLocalX = positions.getX(i);
+    const fLocalY = positions.getY(i);
+    const fWorldX = fCenterX + fLocalX;
+    const fWorldZ = fCenterZ - fLocalY;
+    uvs.setXY(i, fWorldX * FOG_UV_SCALE, fWorldZ * FOG_UV_SCALE);
+  }
+
+  uvs.needsUpdate = true;
+}
+
+function createFogNoiseTexture(): THREE.CanvasTexture {
+  const nSize = 256;
+  const canvas = document.createElement("canvas");
+  canvas.width = nSize;
+  canvas.height = nSize;
+  const ctx = canvas.getContext("2d")!;
+  const imageData = ctx.createImageData(nSize, nSize);
+  const oNoise = new SimplexNoise();
+
+  for (let iy = 0; iy < nSize; iy++) {
+    for (let ix = 0; ix < nSize; ix++) {
+      const fNoise =
+        (oNoise.noise(ix * 0.06, iy * 0.06) +
+          oNoise.noise(ix * 0.12 + 100, iy * 0.12 + 100) * 0.5) /
+        1.5;
+      const fAlpha = (fNoise + 1) * 0.5;
+      const nIndex = (iy * nSize + ix) * 4;
+      imageData.data[nIndex] = 255;
+      imageData.data[nIndex + 1] = 255;
+      imageData.data[nIndex + 2] = 255;
+      imageData.data[nIndex + 3] = Math.floor(fAlpha * 255);
+    }
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+
+  const oTexture = new THREE.CanvasTexture(canvas);
+  oTexture.wrapS = THREE.RepeatWrapping;
+  oTexture.wrapT = THREE.RepeatWrapping;
+  return oTexture;
 }
 
 function getGroundFrustumBounds(oCamera: THREE.Camera): {
