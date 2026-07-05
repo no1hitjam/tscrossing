@@ -16,10 +16,16 @@ const TERRAIN_HEIGHT_RANGE = MACRO_HEIGHT_SCALE + HEIGHT_SCALE;
 
 const DIRT_TILE_CHANCE = 0.1;
 const ROCK_TILE_CHANCE = 0.06;
+const TREE_TILE_CHANCE = 0.05;
 const ROCK_FACE_UV_SIZE = 0.12;
+const TREE_FACE_UV_SIZE = 0.15;
 const ROCK_TOP_SCALE = 0.72;
+const TREE_TOP_SCALE = 0.35;
 const TILE_SIZE = CHUNK_SIZE / CHUNK_SEGMENTS;
 const ROCK_EMBED_DEPTH = TILE_SIZE * 0.35;
+const TREE_HEIGHT = TILE_SIZE * 3.5;
+const TREE_BASE_SIZE = TILE_SIZE * 0.55;
+const TREE_EMBED_DEPTH = TILE_SIZE * 0.15;
 const CHUNK_PADDING = 2;
 const MAX_ACTIVE_CHUNKS = 50;
 const QUADS_UPDATED_PER_FRAME = 4;
@@ -47,6 +53,7 @@ class TerrainChunk {
   readonly nQuadCount: number;
   private readonly geometry: THREE.BufferGeometry;
   private readonly oRockTemplateGeometry: THREE.BufferGeometry;
+  private readonly oTreeTemplateGeometry: THREE.BufferGeometry;
   private readonly fTileUvSize: number;
 
   constructor(
@@ -54,6 +61,7 @@ class TerrainChunk {
     nChunkZ: number,
     aMaterials: THREE.Material[],
     oRockMaterial: THREE.Material,
+    oTreeMaterial: THREE.Material,
     fnSampleHeight: SampleHeightFn,
   ) {
     const fTileUvSize = TEXTURE_TILE_UV_SIZE;
@@ -92,11 +100,18 @@ class TerrainChunk {
     this.root.position.set(fCenterX, 0, fCenterZ);
     this.root.add(this.mesh);
 
-    this.oRockTemplateGeometry = createRockMoundGeometry(
+    this.oRockTemplateGeometry = createTruncatedPyramidGeometry(
+      TILE_SIZE,
       TILE_SIZE,
       ROCK_TOP_SCALE,
     );
+    this.oTreeTemplateGeometry = createTruncatedPyramidGeometry(
+      TREE_BASE_SIZE,
+      TREE_HEIGHT,
+      TREE_TOP_SCALE,
+    );
     this.buildRocks(nChunkX, nChunkZ, oRockMaterial, fnSampleHeight);
+    this.buildTrees(nChunkX, nChunkZ, oTreeMaterial, fnSampleHeight);
   }
 
   private buildRocks(
@@ -134,6 +149,46 @@ class TerrainChunk {
     }
   }
 
+  private buildTrees(
+    nChunkX: number,
+    nChunkZ: number,
+    oTreeMaterial: THREE.Material,
+    fnSampleHeight: SampleHeightFn,
+  ): void {
+    const fHalfChunk = CHUNK_SIZE * 0.5;
+    const fTreeCenterY = TREE_HEIGHT * 0.5 - TREE_EMBED_DEPTH;
+
+    for (let iy = 0; iy < CHUNK_SEGMENTS; iy++) {
+      for (let ix = 0; ix < CHUNK_SEGMENTS; ix++) {
+        const nTileX = nChunkX * CHUNK_SEGMENTS + ix;
+        const nTileZ = nChunkZ * CHUNK_SEGMENTS + iy;
+        if (!tileHasTree(nTileX, nTileZ)) {
+          continue;
+        }
+
+        const fLocalX = -fHalfChunk + (ix + 0.5) * TILE_SIZE;
+        const fLocalZ = fHalfChunk - (iy + 0.5) * TILE_SIZE;
+        const fWorldX = this.root.position.x + fLocalX;
+        const fWorldZ = this.root.position.z + fLocalZ;
+        const fHeight = fnSampleHeight(fWorldX, fWorldZ);
+
+        const oTreeGeometry = this.oTreeTemplateGeometry.clone();
+        applyTreeFaceUvs(
+          oTreeGeometry,
+          TREE_FACE_UV_SIZE,
+          TREE_BASE_SIZE,
+          TREE_HEIGHT,
+        );
+
+        const oTree = new THREE.Mesh(oTreeGeometry, oTreeMaterial);
+        oTree.position.set(fLocalX, fHeight + fTreeCenterY, fLocalZ);
+        oTree.castShadow = true;
+        oTree.receiveShadow = true;
+        this.root.add(oTree);
+      }
+    }
+  }
+
   updateUvs(nCount: number): void {
     const uvs = this.geometry.attributes.uv as THREE.BufferAttribute;
 
@@ -148,6 +203,7 @@ class TerrainChunk {
   dispose(): void {
     this.geometry.dispose();
     this.oRockTemplateGeometry.dispose();
+    this.oTreeTemplateGeometry.dispose();
     this.root.traverse((oChild) => {
       if (oChild === this.mesh) {
         return;
@@ -165,6 +221,7 @@ export class Terrain {
   private readonly mChunks = new Map<string, TerrainChunk>();
   private readonly aMaterials: THREE.Material[];
   private readonly oRockMaterial: THREE.Material;
+  private readonly oTreeMaterial: THREE.Material;
   private readonly oNoise = new SimplexNoise();
   private readonly oFrustum = new THREE.Frustum();
   private readonly mProjScreenMatrix = new THREE.Matrix4();
@@ -202,6 +259,16 @@ export class Terrain {
       map: oRockTexture,
       flatShading: true,
     });
+
+    const oTreeBarkTexture = new THREE.TextureLoader().load("/TreeBark.png");
+    oTreeBarkTexture.wrapS = THREE.RepeatWrapping;
+    oTreeBarkTexture.wrapT = THREE.RepeatWrapping;
+    oTreeBarkTexture.colorSpace = THREE.SRGBColorSpace;
+
+    this.oTreeMaterial = new THREE.MeshStandardMaterial({
+      map: oTreeBarkTexture,
+      flatShading: true,
+    });
   }
 
   update(oCamera: THREE.Camera): void {
@@ -219,6 +286,7 @@ export class Terrain {
         nChunkZ,
         this.aMaterials,
         this.oRockMaterial,
+        this.oTreeMaterial,
         this.sampleHeight.bind(this),
       );
       this.mChunks.set(sKey, oChunk);
@@ -277,6 +345,15 @@ export class Terrain {
   hasRockAt(fWorldX: number, fWorldZ: number): boolean {
     const { nTileX, nTileZ } = worldToTileCoords(fWorldX, fWorldZ);
     return tileHasRock(nTileX, nTileZ);
+  }
+
+  hasTreeAt(fWorldX: number, fWorldZ: number): boolean {
+    const { nTileX, nTileZ } = worldToTileCoords(fWorldX, fWorldZ);
+    return tileHasTree(nTileX, nTileZ);
+  }
+
+  isBlockedAt(fWorldX: number, fWorldZ: number): boolean {
+    return this.hasRockAt(fWorldX, fWorldZ) || this.hasTreeAt(fWorldX, fWorldZ);
   }
 
   private getDesiredChunkKeys(oCamera: THREE.Camera): string[] {
@@ -410,12 +487,18 @@ function tileHasRock(nTileX: number, nTileZ: number): boolean {
   return hashTile(nTileX, nTileZ) < ROCK_TILE_CHANCE;
 }
 
-function createRockMoundGeometry(
-  fSize: number,
+function tileHasTree(nTileX: number, nTileZ: number): boolean {
+  const fHash = hashTile(nTileX, nTileZ);
+  return fHash >= ROCK_TILE_CHANCE && fHash < ROCK_TILE_CHANCE + TREE_TILE_CHANCE;
+}
+
+function createTruncatedPyramidGeometry(
+  fWidth: number,
+  fHeight: number,
   fTopScale: number,
 ): THREE.BufferGeometry {
-  const fHalfHeight = fSize * 0.5;
-  const fHalfBottom = fSize * 0.5;
+  const fHalfHeight = fHeight * 0.5;
+  const fHalfBottom = fWidth * 0.5;
   const fHalfTop = fHalfBottom * fTopScale;
   const aPositions: number[] = [];
   const aUvs: number[] = [];
@@ -550,6 +633,31 @@ function applyRockFaceUvs(
       i,
       fOffsetU + uvs.getX(i) * fFaceUvSize,
       fOffsetV + uvs.getY(i) * fFaceUvSize,
+    );
+  }
+
+  uvs.needsUpdate = true;
+}
+
+function applyTreeFaceUvs(
+  geometry: THREE.BufferGeometry,
+  fFaceUvSize: number,
+  fWidth: number,
+  fHeight: number,
+): void {
+  const uvs = geometry.attributes.uv as THREE.BufferAttribute;
+  const fOffsetU = Math.random();
+  const fOffsetV = Math.random();
+  const fSideVScale = fFaceUvSize * (fHeight / fWidth);
+
+  for (let i = 0; i < uvs.count; i++) {
+    const nFace = Math.floor(i / 4);
+    const fUvSizeV = nFace <= 1 ? fFaceUvSize : fSideVScale;
+
+    uvs.setXY(
+      i,
+      fOffsetU + uvs.getX(i) * fFaceUvSize,
+      fOffsetV + uvs.getY(i) * fUvSizeV,
     );
   }
 

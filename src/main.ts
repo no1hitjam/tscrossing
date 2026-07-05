@@ -95,7 +95,7 @@ scene.add(terrain.root);
 
 const player = new Player(
   terrain.sampleHeightAt.bind(terrain),
-  terrain.hasRockAt.bind(terrain),
+  terrain.isBlockedAt.bind(terrain),
 );
 scene.add(player.mesh);
 
