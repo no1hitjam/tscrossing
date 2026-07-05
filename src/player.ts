@@ -3,9 +3,8 @@ import * as THREE from "three";
 const MOVE_SPEED = 6;
 const SPRINT_MULTIPLIER = 1.75;
 const PLAYER_HEIGHT = 1.6;
-const PLAYER_RADIUS = 0.35;
-const CAPSULE_LENGTH = 0.8;
-const fBodyCenterY = CAPSULE_LENGTH * 0.5 + PLAYER_RADIUS;
+const PLAYER_BASE_RADIUS = 0.45;
+const PLAYER_TOP_RADIUS = 0.18;
 const CROSSHAIR_DISTANCE = 0.5;
 const CROSSHAIR_LIFT = 0.46;
 const CROSSHAIR_ARM = 0.35;
@@ -28,22 +27,27 @@ export class Player {
     this.mesh = new THREE.Group();
     this.applyTerrainHeight(0, 0);
 
-    const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x4caf50 });
+    const oPlayerTexture = new THREE.TextureLoader().load("/Player.png");
+    oPlayerTexture.wrapS = THREE.RepeatWrapping;
+    oPlayerTexture.wrapT = THREE.RepeatWrapping;
+    oPlayerTexture.colorSpace = THREE.SRGBColorSpace;
+
+    const bodyMaterial = new THREE.MeshStandardMaterial({
+      map: oPlayerTexture,
+      flatShading: true,
+    });
     const body = new THREE.Mesh(
-      new THREE.CapsuleGeometry(PLAYER_RADIUS, CAPSULE_LENGTH, 8, 16),
+      new THREE.CylinderGeometry(
+        PLAYER_TOP_RADIUS,
+        PLAYER_BASE_RADIUS,
+        PLAYER_HEIGHT,
+        4,
+      ),
       bodyMaterial,
     );
     body.castShadow = true;
-    body.position.y = fBodyCenterY;
+    body.position.y = PLAYER_HEIGHT * 0.5;
     this.mesh.add(body);
-
-    const head = new THREE.Mesh(
-      new THREE.SphereGeometry(0.28, 16, 16),
-      new THREE.MeshStandardMaterial({ color: 0xffcc80 }),
-    );
-    head.castShadow = true;
-    head.position.y = PLAYER_HEIGHT - 0.15;
-    this.mesh.add(head);
 
     this.crosshair = new THREE.Group();
     const crosshairMaterial = new THREE.MeshBasicMaterial({
