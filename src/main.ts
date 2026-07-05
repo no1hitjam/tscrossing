@@ -93,7 +93,10 @@ scene.add(sunLight.target);
 const terrain = new Terrain();
 scene.add(terrain.root);
 
-const player = new Player(terrain.sampleHeightAt.bind(terrain));
+const player = new Player(
+  terrain.sampleHeightAt.bind(terrain),
+  terrain.hasRockAt.bind(terrain),
+);
 scene.add(player.mesh);
 
 const CAMERA_HEIGHT = 10;

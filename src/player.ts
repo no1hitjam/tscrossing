@@ -11,10 +11,15 @@ export class Player {
   readonly mesh: THREE.Group;
   private readonly vVelocity = new THREE.Vector3();
   private readonly fnSampleHeight: (fX: number, fZ: number) => number | null;
+  private readonly fnIsBlocked: (fX: number, fZ: number) => boolean;
   private fYaw = 0;
 
-  constructor(fnSampleHeight: (fX: number, fZ: number) => number | null) {
+  constructor(
+    fnSampleHeight: (fX: number, fZ: number) => number | null,
+    fnIsBlocked: (fX: number, fZ: number) => boolean,
+  ) {
     this.fnSampleHeight = fnSampleHeight;
+    this.fnIsBlocked = fnIsBlocked;
     this.mesh = new THREE.Group();
     this.applyTerrainHeight(0, 0);
 
@@ -76,8 +81,17 @@ export class Player {
       this.vVelocity.z = 0;
     }
 
-    this.mesh.position.x += this.vVelocity.x * dt;
-    this.mesh.position.z += this.vVelocity.z * dt;
+    const fNewX = this.mesh.position.x + this.vVelocity.x * dt;
+    const fNewZ = this.mesh.position.z + this.vVelocity.z * dt;
+
+    if (!this.fnIsBlocked(fNewX, this.mesh.position.z)) {
+      this.mesh.position.x = fNewX;
+    }
+
+    if (!this.fnIsBlocked(this.mesh.position.x, fNewZ)) {
+      this.mesh.position.z = fNewZ;
+    }
+
     this.applyTerrainHeight(this.mesh.position.x, this.mesh.position.z);
   }
 

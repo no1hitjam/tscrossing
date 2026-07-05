@@ -96,10 +96,12 @@ class TerrainChunk {
       TILE_SIZE,
       ROCK_TOP_SCALE,
     );
-    this.buildRocks(oRockMaterial, fnSampleHeight);
+    this.buildRocks(nChunkX, nChunkZ, oRockMaterial, fnSampleHeight);
   }
 
   private buildRocks(
+    nChunkX: number,
+    nChunkZ: number,
     oRockMaterial: THREE.Material,
     fnSampleHeight: SampleHeightFn,
   ): void {
@@ -108,7 +110,9 @@ class TerrainChunk {
 
     for (let iy = 0; iy < CHUNK_SEGMENTS; iy++) {
       for (let ix = 0; ix < CHUNK_SEGMENTS; ix++) {
-        if (Math.random() >= ROCK_TILE_CHANCE) {
+        const nTileX = nChunkX * CHUNK_SEGMENTS + ix;
+        const nTileZ = nChunkZ * CHUNK_SEGMENTS + iy;
+        if (!tileHasRock(nTileX, nTileZ)) {
           continue;
         }
 
@@ -270,6 +274,11 @@ export class Terrain {
     return this.sampleHeight(fX, fZ);
   }
 
+  hasRockAt(fWorldX: number, fWorldZ: number): boolean {
+    const { nTileX, nTileZ } = worldToTileCoords(fWorldX, fWorldZ);
+    return tileHasRock(nTileX, nTileZ);
+  }
+
   private getDesiredChunkKeys(oCamera: THREE.Camera): string[] {
     oCamera.updateMatrixWorld();
 
@@ -369,6 +378,36 @@ function getGroundFrustumBounds(oCamera: THREE.Camera): {
   }
 
   return { minX: fMinX, maxX: fMaxX, minZ: fMinZ, maxZ: fMaxZ };
+}
+
+function worldToTileCoords(
+  fWorldX: number,
+  fWorldZ: number,
+): { nTileX: number; nTileZ: number } {
+  const nChunkX = worldToChunkIndex(fWorldX);
+  const nChunkZ = worldToChunkIndex(fWorldZ);
+  const fCenterX = nChunkX * CHUNK_SIZE;
+  const fCenterZ = nChunkZ * CHUNK_SIZE;
+  const fHalfChunk = CHUNK_SIZE * 0.5;
+  const nTileX =
+    nChunkX * CHUNK_SEGMENTS +
+    Math.floor((fWorldX - fCenterX + fHalfChunk) / TILE_SIZE);
+  const nTileZ =
+    nChunkZ * CHUNK_SEGMENTS +
+    Math.floor((fCenterZ + fHalfChunk - fWorldZ) / TILE_SIZE);
+
+  return { nTileX, nTileZ };
+}
+
+function hashTile(nTileX: number, nTileZ: number): number {
+  let nHash = nTileX * 374761393 + nTileZ * 668265263;
+  nHash = (nHash ^ (nHash >>> 13)) >>> 0;
+  nHash = (nHash * 1274126177) >>> 0;
+  return (nHash & 0xffffff) / 0x1000000;
+}
+
+function tileHasRock(nTileX: number, nTileZ: number): boolean {
+  return hashTile(nTileX, nTileZ) < ROCK_TILE_CHANCE;
 }
 
 function createRockMoundGeometry(
