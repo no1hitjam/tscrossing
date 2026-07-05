@@ -36,3 +36,59 @@ canvas {
   padding-top: 8px;
   border-top: 1px solid rgba(255, 255, 255, 0.2);
 }
+
+#inventory-notes {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  pointer-events: auto;
+}
+
+#inventory-notes-list {
+  list-style: none;
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.inventory-note {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 6px;
+  padding: 4px 10px;
+  background: rgba(255, 252, 240, 0.15);
+  color: #f5f5f5;
+  font: inherit;
+  cursor: pointer;
+}
+
+.inventory-note:hover {
+  background: rgba(255, 252, 240, 0.28);
+}
+
+#note-panel {
+  position: fixed;
+  left: 50%;
+  bottom: 48px;
+  transform: translateX(-50%);
+  max-width: min(480px, calc(100vw - 32px));
+  padding: 16px 20px;
+  border-radius: 10px;
+  background: rgba(255, 252, 240, 0.96);
+  color: #2a2418;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  user-select: none;
+}
+
+#note-text {
+  font-size: 16px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+#note-dismiss {
+  margin-top: 12px;
+  font-size: 12px;
+  color: rgba(42, 36, 24, 0.65);
+}

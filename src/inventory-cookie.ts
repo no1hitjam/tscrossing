@@ -1,9 +1,14 @@
+import { isValidNoteFile } from "./tree-notes";
+
 const COOKIE_NAME = "tscrossing-inventory";
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
+const TILE_KEY_PATTERN = /^-?\d+,-?\d+$/;
 
 export interface InventoryState {
   rocks: number;
   wood: number;
+  notes: string[];
+  collectedTreeNotes: string[];
 }
 
 function parseNonNegativeInteger(value: unknown): number | null {
@@ -13,6 +18,42 @@ function parseNonNegativeInteger(value: unknown): number | null {
 
   const nRounded = Math.floor(value);
   return nRounded === value ? nRounded : null;
+}
+
+function parseNoteFileList(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const aNotes: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string" || !isValidNoteFile(item) || aNotes.includes(item)) {
+      continue;
+    }
+
+    aNotes.push(item);
+  }
+
+  return aNotes;
+}
+
+function parseTileKeyList(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const aTileKeys: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string" || !TILE_KEY_PATTERN.test(item)) {
+      continue;
+    }
+
+    if (!aTileKeys.includes(item)) {
+      aTileKeys.push(item);
+    }
+  }
+
+  return aTileKeys;
 }
 
 function readCookie(sName: string): string | null {
@@ -41,15 +82,17 @@ export function loadInventoryFromCookie(): InventoryState | null {
       return null;
     }
 
-    return { rocks: nRocks, wood: nWood };
+    return {
+      rocks: nRocks,
+      wood: nWood,
+      notes: parseNoteFileList(oParsed.notes),
+      collectedTreeNotes: parseTileKeyList(oParsed.collectedTreeNotes),
+    };
   } catch {
     return null;
   }
 }
 
-export function saveInventoryToCookie(nRocks: number, nWood: number): void {
-  writeCookie(
-    COOKIE_NAME,
-    JSON.stringify({ rocks: nRocks, wood: nWood }),
-  );
+export function saveInventoryToCookie(oState: InventoryState): void {
+  writeCookie(COOKIE_NAME, JSON.stringify(oState));
 }

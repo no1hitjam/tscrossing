@@ -20,6 +20,7 @@ export class Player {
   private fYaw = 0;
   private nRocks = 0;
   private nWood = 0;
+  private aNotes: string[] = [];
 
   constructor(
     fnSampleHeight: (fX: number, fZ: number) => number | null,
@@ -159,9 +160,18 @@ export class Player {
     return this.nWood;
   }
 
-  setInventory(nRocks: number, nWood: number): void {
+  get notes(): readonly string[] {
+    return this.aNotes;
+  }
+
+  setInventory(
+    nRocks: number,
+    nWood: number,
+    aNotes: readonly string[] = [],
+  ): void {
     this.nRocks = nRocks;
     this.nWood = nWood;
+    this.aNotes = [...aNotes];
   }
 
   collectResource(eResource: "rock" | "tree"): void {
@@ -170,5 +180,13 @@ export class Player {
     } else {
       this.nWood += RESOURCE_YIELD;
     }
+  }
+
+  collectNote(sFileName: string): void {
+    if (this.aNotes.includes(sFileName)) {
+      return;
+    }
+
+    this.aNotes.push(sFileName);
   }
 }

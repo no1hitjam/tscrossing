@@ -7,6 +7,7 @@ import {
 import { PappusParticles } from "./pappus-particles";
 import { Player } from "./player";
 import { Terrain } from "./terrain";
+import { loadNoteText, formatNoteLabel } from "./tree-notes";
 
 const GAME_KEY_CODES = new Set([
   "KeyW",
@@ -130,24 +131,87 @@ window.addEventListener("resize", () => {
 
 const clock = new THREE.Clock();
 let bSpaceWasDown = false;
+let bEscapeWasDown = false;
+let bNotePanelOpen = false;
 
 const elInventoryRocks = document.getElementById("inventory-rocks")!;
 const elInventoryWood = document.getElementById("inventory-wood")!;
+const elInventoryNotesEmpty = document.getElementById("inventory-notes-empty")!;
+const elInventoryNotesList = document.getElementById("inventory-notes-list")!;
+const elNotePanel = document.getElementById("note-panel")!;
+const elNoteText = document.getElementById("note-text")!;
 
 function updateInventoryHud(): void {
   elInventoryRocks.textContent = String(player.rocks);
   elInventoryWood.textContent = String(player.wood);
+
+  elInventoryNotesList.replaceChildren();
+  const aNotes = player.notes;
+  elInventoryNotesEmpty.hidden = aNotes.length > 0;
+
+  for (const sFileName of aNotes) {
+    const elButton = document.createElement("button");
+    elButton.type = "button";
+    elButton.className = "inventory-note";
+    elButton.textContent = formatNoteLabel(sFileName);
+    elButton.addEventListener("click", () => {
+      void openNote(sFileName);
+    });
+    elInventoryNotesList.appendChild(elButton);
+  }
 }
 
 function persistInventory(): void {
-  saveInventoryToCookie(player.rocks, player.wood);
+  saveInventoryToCookie({
+    rocks: player.rocks,
+    wood: player.wood,
+    notes: [...player.notes],
+    collectedTreeNotes: terrain.getCollectedTreeNotes(),
+  });
 }
 
 const oSavedInventory = loadInventoryFromCookie();
 if (oSavedInventory !== null) {
-  player.setInventory(oSavedInventory.rocks, oSavedInventory.wood);
+  player.setInventory(
+    oSavedInventory.rocks,
+    oSavedInventory.wood,
+    oSavedInventory.notes,
+  );
+  terrain.setCollectedTreeNotes(oSavedInventory.collectedTreeNotes);
 }
 updateInventoryHud();
+
+function showNotePanel(sText: string): void {
+  elNoteText.textContent = sText;
+  elNotePanel.hidden = false;
+  bNotePanelOpen = true;
+}
+
+function hideNotePanel(): void {
+  elNotePanel.hidden = true;
+  bNotePanelOpen = false;
+}
+
+async function openNote(sFileName: string): Promise<void> {
+  try {
+    const sText = await loadNoteText(sFileName);
+    showNotePanel(sText);
+  } catch {
+    showNotePanel("This note is missing.");
+  }
+}
+
+async function collectHighlightedTreeNote(): Promise<void> {
+  const sNoteFile = terrain.collectHighlightedTreeNote();
+  if (sNoteFile === null) {
+    return;
+  }
+
+  player.collectNote(sNoteFile);
+  updateInventoryHud();
+  persistInventory();
+  await openNote(sNoteFile);
+}
 
 function updateShadowLight(): void {
   sunLight.position.set(
@@ -180,14 +244,26 @@ function animate(): void {
 
   const bSpaceDown = keys["Space"] ?? false;
   if (bSpaceDown && !bSpaceWasDown) {
-    const eDestroyed = terrain.damageHighlightedFeature();
-    if (eDestroyed !== null) {
-      player.collectResource(eDestroyed);
-      updateInventoryHud();
-      persistInventory();
+    if (bNotePanelOpen) {
+      hideNotePanel();
+    } else if (terrain.getHighlightedTreeNoteFile() !== null) {
+      void collectHighlightedTreeNote();
+    } else {
+      const eDestroyed = terrain.damageHighlightedFeature();
+      if (eDestroyed !== null) {
+        player.collectResource(eDestroyed);
+        updateInventoryHud();
+        persistInventory();
+      }
     }
   }
   bSpaceWasDown = bSpaceDown;
+
+  const bEscapeDown = keys["Escape"] ?? false;
+  if (bEscapeDown && !bEscapeWasDown && bNotePanelOpen) {
+    hideNotePanel();
+  }
+  bEscapeWasDown = bEscapeDown;
 
   updateShadowLight();
   pappusParticles.update(dt, camera, player.position);

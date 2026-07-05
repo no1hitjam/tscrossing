@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { SimplexNoise } from "three/addons/math/SimplexNoise.js";
+import { getNoteFileByIndex, getNoteFileCount } from "./tree-notes";
 
 const CHUNK_SIZE = 32;
 const CHUNK_SEGMENTS = 16;
@@ -17,6 +18,7 @@ const TERRAIN_HEIGHT_RANGE = MACRO_HEIGHT_SCALE + HEIGHT_SCALE;
 const DIRT_TILE_CHANCE = 0.1;
 const ROCK_TILE_CHANCE = 0.06;
 const TREE_TILE_CHANCE = 0.05;
+const TREE_NOTE_CHANCE = 0.2;
 const ROCK_FACE_UV_SIZE = 0.12;
 const TREE_FACE_UV_SIZE = 0.15;
 const ROCK_TOP_SCALE = 0.72;
@@ -26,6 +28,9 @@ const ROCK_EMBED_DEPTH = TILE_SIZE * 0.35;
 const TREE_HEIGHT = TILE_SIZE * 3.5;
 const TREE_BASE_SIZE = TILE_SIZE * 0.55;
 const TREE_EMBED_DEPTH = TILE_SIZE * 0.15;
+const TREE_NOTE_MARKER_SIZE = TILE_SIZE * 0.14;
+const TREE_NOTE_MARKER_HEIGHT_FRACTION = 0.25;
+const TREE_NOTE_MARKER_Z_OFFSET = 0.02;
 const HIGHLIGHT_EMISSIVE = 0x999999;
 const HIGHLIGHT_EMISSIVE_INTENSITY = 0.1;
 const FEATURE_MAX_HEALTH = 4;
@@ -59,6 +64,11 @@ type IsFeatureActiveFn = (
   nTileZ: number,
   eFeature: TileFeature,
 ) => boolean;
+type AddTreeNoteMarkerFn = (
+  nTileX: number,
+  nTileZ: number,
+  oTree: THREE.Mesh,
+) => void;
 
 function chunkKey(nChunkX: number, nChunkZ: number): string {
   return `${nChunkX},${nChunkZ}`;
@@ -93,6 +103,7 @@ class TerrainChunk {
     fnSampleHeight: SampleHeightFn,
     fnRegisterFeatureMesh: RegisterFeatureMeshFn,
     fnIsFeatureActive: IsFeatureActiveFn,
+    fnAddTreeNoteMarker: AddTreeNoteMarkerFn,
   ) {
     const fTileUvSize = TEXTURE_TILE_UV_SIZE;
     const fCenterX = nChunkX * CHUNK_SIZE;
@@ -159,6 +170,7 @@ class TerrainChunk {
       fnSampleHeight,
       fnRegisterFeatureMesh,
       fnIsFeatureActive,
+      fnAddTreeNoteMarker,
     );
   }
 
@@ -213,6 +225,7 @@ class TerrainChunk {
     fnSampleHeight: SampleHeightFn,
     fnRegisterFeatureMesh: RegisterFeatureMeshFn,
     fnIsFeatureActive: IsFeatureActiveFn,
+    fnAddTreeNoteMarker: AddTreeNoteMarkerFn,
   ): void {
     const fHalfChunk = CHUNK_SIZE * 0.5;
     const fTreeCenterY = TREE_HEIGHT * 0.5 - TREE_EMBED_DEPTH;
@@ -243,6 +256,7 @@ class TerrainChunk {
         oTree.position.set(fLocalX, fHeight + fTreeCenterY, fLocalZ);
         oTree.castShadow = true;
         oTree.receiveShadow = true;
+        fnAddTreeNoteMarker(nTileX, nTileZ, oTree);
         this.root.add(oTree);
         this.aRegisteredTileKeys.push(
           fnRegisterFeatureMesh(nTileX, nTileZ, "tree", oTree),
@@ -273,6 +287,10 @@ class TerrainChunk {
       }
 
       if (oChild instanceof THREE.Mesh) {
+        if (oChild.userData.bSharedGeometry) {
+          return;
+        }
+
         oChild.geometry.dispose();
       }
     });
@@ -295,8 +313,11 @@ export class Terrain {
   private readonly mFeatureMeshes = new Map<string, THREE.Mesh>();
   private readonly mFeatureHealth = new Map<string, number>();
   private readonly mDestroyedFeatures = new Set<string>();
+  private readonly mCollectedTreeNotes = new Set<string>();
   private readonly oRockHighlightMaterial: THREE.MeshStandardMaterial;
   private readonly oTreeHighlightMaterial: THREE.MeshStandardMaterial;
+  private readonly oNoteMarkerGeometry: THREE.PlaneGeometry;
+  private readonly oNoteMarkerMaterial: THREE.MeshBasicMaterial;
   private oHighlightedMesh: THREE.Mesh | null = null;
   private sHighlightedTileKey: string | null = null;
 
@@ -358,6 +379,12 @@ export class Terrain {
     this.oTreeHighlightMaterial = this.oTreeMaterial.clone() as THREE.MeshStandardMaterial;
     this.oTreeHighlightMaterial.emissive.setHex(HIGHLIGHT_EMISSIVE);
     this.oTreeHighlightMaterial.emissiveIntensity = HIGHLIGHT_EMISSIVE_INTENSITY;
+
+    this.oNoteMarkerGeometry = new THREE.PlaneGeometry(
+      TREE_NOTE_MARKER_SIZE,
+      TREE_NOTE_MARKER_SIZE,
+    );
+    this.oNoteMarkerMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
   }
 
   update(oCamera: THREE.Camera, fDt = 0): void {
@@ -383,6 +410,7 @@ export class Terrain {
         this.sampleHeight.bind(this),
         this.registerFeatureMesh.bind(this),
         this.isFeatureActive.bind(this),
+        this.addTreeNoteMarker.bind(this),
       );
       this.mChunks.set(sKey, oChunk);
       this.root.add(oChunk.root);
@@ -488,6 +516,58 @@ export class Terrain {
     this.sHighlightedTileKey = sTileKey;
   }
 
+  setCollectedTreeNotes(aTileKeys: readonly string[]): void {
+    this.mCollectedTreeNotes.clear();
+    for (const sTileKey of aTileKeys) {
+      this.mCollectedTreeNotes.add(sTileKey);
+    }
+  }
+
+  getCollectedTreeNotes(): string[] {
+    return [...this.mCollectedTreeNotes];
+  }
+
+  getHighlightedTreeNoteFile(): string | null {
+    if (
+      this.oHighlightedMesh === null ||
+      this.sHighlightedTileKey === null ||
+      this.mCollectedTreeNotes.has(this.sHighlightedTileKey)
+    ) {
+      return null;
+    }
+
+    const eFeature = this.oHighlightedMesh.userData.eFeature as TileFeature;
+    if (eFeature !== "tree") {
+      return null;
+    }
+
+    return (this.oHighlightedMesh.userData.sNoteFile as string | undefined) ?? null;
+  }
+
+  collectHighlightedTreeNote(): string | null {
+    const sNoteFile = this.getHighlightedTreeNoteFile();
+    if (
+      sNoteFile === null ||
+      this.sHighlightedTileKey === null ||
+      this.oHighlightedMesh === null
+    ) {
+      return null;
+    }
+
+    this.mCollectedTreeNotes.add(this.sHighlightedTileKey);
+    delete this.oHighlightedMesh.userData.sNoteFile;
+
+    const oTree = this.oHighlightedMesh;
+    for (let i = oTree.children.length - 1; i >= 0; i--) {
+      const oChild = oTree.children[i];
+      if (oChild.userData.bNoteMarker) {
+        oTree.remove(oChild);
+      }
+    }
+
+    return sNoteFile;
+  }
+
   damageHighlightedFeature(): TileFeature | null {
     if (this.sHighlightedTileKey === null || this.oHighlightedMesh === null) {
       return null;
@@ -505,6 +585,35 @@ export class Terrain {
 
     this.mFeatureHealth.set(sTileKey, nHealth);
     return null;
+  }
+
+  private addTreeNoteMarker(
+    nTileX: number,
+    nTileZ: number,
+    oTree: THREE.Mesh,
+  ): void {
+    const sTileKey = featureTileKey(nTileX, nTileZ);
+    if (!tileHasTreeNote(nTileX, nTileZ) || this.mCollectedTreeNotes.has(sTileKey)) {
+      return;
+    }
+
+    const fHalfHeight = TREE_HEIGHT * 0.5;
+    const fHalfBottom = TREE_BASE_SIZE * 0.5;
+    const fHalfTop = fHalfBottom * TREE_TOP_SCALE;
+    const fMarkerY =
+      -fHalfHeight + TREE_HEIGHT * TREE_NOTE_MARKER_HEIGHT_FRACTION;
+    const fFaceZ =
+      fHalfBottom +
+      ((fMarkerY + fHalfHeight) / (2 * fHalfHeight)) * (fHalfTop - fHalfBottom);
+
+    const oNoteMarker = new THREE.Mesh(
+      this.oNoteMarkerGeometry,
+      this.oNoteMarkerMaterial,
+    );
+    oNoteMarker.position.set(0, fMarkerY, fFaceZ + TREE_NOTE_MARKER_Z_OFFSET);
+    oNoteMarker.userData.bSharedGeometry = true;
+    oNoteMarker.userData.bNoteMarker = true;
+    oTree.add(oNoteMarker);
   }
 
   private isFeatureActive(
@@ -554,6 +663,15 @@ export class Terrain {
   ): string {
     oMesh.userData.eFeature = eFeature;
     const sTileKey = featureTileKey(nTileX, nTileZ);
+    if (
+      eFeature === "tree" &&
+      tileHasTreeNote(nTileX, nTileZ) &&
+      !this.mCollectedTreeNotes.has(sTileKey)
+    ) {
+      oMesh.userData.sNoteFile = getNoteFileByIndex(
+        getTreeNoteFileIndex(nTileX, nTileZ),
+      );
+    }
     if (!this.mFeatureHealth.has(sTileKey)) {
       this.mFeatureHealth.set(sTileKey, FEATURE_MAX_HEALTH);
     }
@@ -787,6 +905,25 @@ function hashTile(nTileX: number, nTileZ: number): number {
   nHash = (nHash ^ (nHash >>> 13)) >>> 0;
   nHash = (nHash * 1274126177) >>> 0;
   return (nHash & 0xffffff) / 0x1000000;
+}
+
+function hashTileSeed(nTileX: number, nTileZ: number, nSeed: number): number {
+  let nHash = nTileX * 374761393 + nTileZ * 668265263 + nSeed * 982451653;
+  nHash = (nHash ^ (nHash >>> 13)) >>> 0;
+  nHash = (nHash * 1274126177) >>> 0;
+  return (nHash & 0xffffff) / 0x1000000;
+}
+
+function tileHasTreeNote(nTileX: number, nTileZ: number): boolean {
+  if (!tileHasTree(nTileX, nTileZ)) {
+    return false;
+  }
+
+  return hashTileSeed(nTileX, nTileZ, 1) < TREE_NOTE_CHANCE;
+}
+
+function getTreeNoteFileIndex(nTileX: number, nTileZ: number): number {
+  return Math.floor(hashTileSeed(nTileX, nTileZ, 2) * getNoteFileCount());
 }
 
 function tileHasRock(nTileX: number, nTileZ: number): boolean {
