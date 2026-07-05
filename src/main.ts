@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { Player } from "./player";
+import { Terrain } from "./terrain";
 
 const GAME_KEY_CODES = new Set([
   "KeyW",
@@ -89,17 +90,8 @@ sunLight.shadow.camera.top = 25;
 sunLight.shadow.camera.bottom = -25;
 scene.add(sunLight);
 
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE),
-  new THREE.MeshStandardMaterial({ color: 0x6bbf59 }),
-);
-ground.rotation.x = -Math.PI / 2;
-ground.receiveShadow = true;
-scene.add(ground);
-
-const grid = new THREE.GridHelper(WORLD_SIZE, WORLD_SIZE, 0x3d8b40, 0x4fa052);
-grid.position.y = 0.01;
-scene.add(grid);
+const terrain = new Terrain(WORLD_SIZE);
+scene.add(terrain.mesh);
 
 const propMaterial = new THREE.MeshStandardMaterial({ color: 0x8d6e63 });
 for (let i = 0; i < 12; i++) {
@@ -108,17 +100,19 @@ for (let i = 0; i < 12; i++) {
     new THREE.BoxGeometry(size, size * 1.5, size),
     propMaterial,
   );
+  const fPropX = THREE.MathUtils.randFloatSpread(WORLD_SIZE * 0.7);
+  const fPropZ = THREE.MathUtils.randFloatSpread(WORLD_SIZE * 0.7);
   prop.position.set(
-    THREE.MathUtils.randFloatSpread(WORLD_SIZE * 0.7),
-    (size * 1.5) / 2,
-    THREE.MathUtils.randFloatSpread(WORLD_SIZE * 0.7),
+    fPropX,
+    terrain.sampleHeight(fPropX, fPropZ) + (size * 1.5) / 2,
+    fPropZ,
   );
   prop.castShadow = true;
   prop.receiveShadow = true;
   scene.add(prop);
 }
 
-const player = new Player();
+const player = new Player(terrain.sampleHeight.bind(terrain));
 scene.add(player.mesh);
 
 const CAMERA_HEIGHT = 10;

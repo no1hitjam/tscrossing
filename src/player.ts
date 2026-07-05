@@ -2,26 +2,29 @@ import * as THREE from "three";
 
 const MOVE_SPEED = 6;
 const SPRINT_MULTIPLIER = 1.75;
-const GROUND_Y = 0;
 const PLAYER_HEIGHT = 1.6;
 const PLAYER_RADIUS = 0.35;
+const CAPSULE_LENGTH = 0.8;
+const fBodyCenterY = CAPSULE_LENGTH * 0.5 + PLAYER_RADIUS;
 
 export class Player {
   readonly mesh: THREE.Group;
   private readonly vVelocity = new THREE.Vector3();
+  private readonly fnSampleHeight: (fX: number, fZ: number) => number;
   private fYaw = 0;
 
-  constructor() {
+  constructor(fnSampleHeight: (fX: number, fZ: number) => number) {
+    this.fnSampleHeight = fnSampleHeight;
     this.mesh = new THREE.Group();
-    this.mesh.position.y = GROUND_Y + PLAYER_HEIGHT * 0.5;
+    this.mesh.position.y = this.fnSampleHeight(0, 0);
 
     const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x4caf50 });
     const body = new THREE.Mesh(
-      new THREE.CapsuleGeometry(PLAYER_RADIUS, 0.8, 8, 16),
+      new THREE.CapsuleGeometry(PLAYER_RADIUS, CAPSULE_LENGTH, 8, 16),
       bodyMaterial,
     );
     body.castShadow = true;
-    body.position.y = PLAYER_HEIGHT * 0.5;
+    body.position.y = fBodyCenterY;
     this.mesh.add(body);
 
     const head = new THREE.Mesh(
@@ -75,6 +78,10 @@ export class Player {
 
     this.mesh.position.x += this.vVelocity.x * dt;
     this.mesh.position.z += this.vVelocity.z * dt;
+    this.mesh.position.y = this.fnSampleHeight(
+      this.mesh.position.x,
+      this.mesh.position.z,
+    );
   }
 
   get position(): THREE.Vector3 {
