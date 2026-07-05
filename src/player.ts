@@ -10,13 +10,13 @@ const fBodyCenterY = CAPSULE_LENGTH * 0.5 + PLAYER_RADIUS;
 export class Player {
   readonly mesh: THREE.Group;
   private readonly vVelocity = new THREE.Vector3();
-  private readonly fnSampleHeight: (fX: number, fZ: number) => number;
+  private readonly fnSampleHeight: (fX: number, fZ: number) => number | null;
   private fYaw = 0;
 
-  constructor(fnSampleHeight: (fX: number, fZ: number) => number) {
+  constructor(fnSampleHeight: (fX: number, fZ: number) => number | null) {
     this.fnSampleHeight = fnSampleHeight;
     this.mesh = new THREE.Group();
-    this.mesh.position.y = this.fnSampleHeight(0, 0);
+    this.applyTerrainHeight(0, 0);
 
     const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x4caf50 });
     const body = new THREE.Mesh(
@@ -78,10 +78,16 @@ export class Player {
 
     this.mesh.position.x += this.vVelocity.x * dt;
     this.mesh.position.z += this.vVelocity.z * dt;
-    this.mesh.position.y = this.fnSampleHeight(
-      this.mesh.position.x,
-      this.mesh.position.z,
-    );
+    this.applyTerrainHeight(this.mesh.position.x, this.mesh.position.z);
+  }
+
+  private applyTerrainHeight(fX: number, fZ: number): void {
+    const fHeight = this.fnSampleHeight(fX, fZ);
+    if (fHeight === null) {
+      return;
+    }
+
+    this.mesh.position.set(fX, fHeight, fZ);
   }
 
   get position(): THREE.Vector3 {

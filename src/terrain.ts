@@ -9,10 +9,15 @@ const OCTAVES = 4;
 const PERSISTENCE = 0.5;
 const LACUNARITY = 2;
 
+const RAYCAST_ORIGIN_Y = 100;
+
 export class Terrain {
   readonly mesh: THREE.Mesh;
   readonly fWorldSize: number;
   private readonly oNoise = new SimplexNoise();
+  private readonly oRaycaster = new THREE.Raycaster();
+  private readonly vRayOrigin = new THREE.Vector3();
+  private readonly vRayDirection = new THREE.Vector3(0, -1, 0);
 
   constructor(fWorldSize: number) {
     this.fWorldSize = fWorldSize;
@@ -68,6 +73,18 @@ export class Terrain {
     }
 
     return (fHeight / fMaxAmplitude) * HEIGHT_SCALE;
+  }
+
+  sampleHeightAt(fX: number, fZ: number): number | null {
+    this.vRayOrigin.set(fX, RAYCAST_ORIGIN_Y, fZ);
+    this.oRaycaster.set(this.vRayOrigin, this.vRayDirection);
+
+    const aHits = this.oRaycaster.intersectObject(this.mesh);
+    if (aHits.length === 0) {
+      return null;
+    }
+
+    return aHits[0].point.y;
   }
 }
 

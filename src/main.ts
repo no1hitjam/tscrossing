@@ -112,7 +112,7 @@ for (let i = 0; i < 12; i++) {
   scene.add(prop);
 }
 
-const player = new Player(terrain.sampleHeight.bind(terrain));
+const player = new Player(terrain.sampleHeightAt.bind(terrain));
 scene.add(player.mesh);
 
 const CAMERA_HEIGHT = 10;
