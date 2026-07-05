@@ -11,12 +11,20 @@ const SEMITONE_RATIO = 2 ** (1 / 12);
 
 const A_IDLE_PATTERN = [0, 4, 7, 4, 2, 0, -3, 2] as const;
 const A_MOVING_PATTERN = [0, 7, 12, 7, 4, 7, 12, 9] as const;
+const A_IDLE_MINIMAL_PATTERN = [0, -12, -7, -12, 0, -7] as const;
+const A_MOVING_MINIMAL_PATTERN = [0, -12, -7, -12, -8, -12] as const;
 
 const F_IDLE_STEP_SECONDS = 0.62;
 const F_MOVING_STEP_SECONDS = 0.38;
+const F_OSCILLATION_PERIOD = 10;
+const F_MINIMAL_STEP_MULTIPLIER = 1.55;
 
 function semitonesToPlaybackRate(nSemitones: number): number {
   return SEMITONE_RATIO ** nSemitones;
+}
+
+function getOscillationBlend(fTime: number): number {
+  return (Math.sin((2 * Math.PI * fTime) / F_OSCILLATION_PERIOD) + 1) / 2;
 }
 
 export class DynamicMusic {
@@ -148,22 +156,39 @@ export class DynamicMusic {
       return;
     }
 
-    const aPattern = this.bPlayerMoving ? A_MOVING_PATTERN : A_IDLE_PATTERN;
-    const fStepSeconds = this.bPlayerMoving
+    const aFullPattern = this.bPlayerMoving ? A_MOVING_PATTERN : A_IDLE_PATTERN;
+    const aMinimalPattern = this.bPlayerMoving
+      ? A_MOVING_MINIMAL_PATTERN
+      : A_IDLE_MINIMAL_PATTERN;
+    const fFullStepSeconds = this.bPlayerMoving
       ? F_MOVING_STEP_SECONDS
       : F_IDLE_STEP_SECONDS;
+    const fMinimalStepSeconds = fFullStepSeconds * F_MINIMAL_STEP_MULTIPLIER;
     const fScheduleUntil =
       this.oAudioContext.currentTime + LOOK_AHEAD_SECONDS;
 
     while (this.fNextNoteTime < fScheduleUntil) {
-      const nSemitones = aPattern[this.nPatternIndex % aPattern.length];
-      this.scheduleTone(nSemitones, this.fNextNoteTime);
+      const fBlend = getOscillationBlend(this.fNextNoteTime);
+      const nPatternIndex = this.nPatternIndex % aFullPattern.length;
+      const nFullSemitones = aFullPattern[nPatternIndex];
+      const nMinimalSemitones =
+        aMinimalPattern[nPatternIndex % aMinimalPattern.length];
+      const nSemitones = fBlend >= 0.5 ? nFullSemitones : nMinimalSemitones;
+      const fStepSeconds =
+        fFullStepSeconds * fBlend + fMinimalStepSeconds * (1 - fBlend);
+      const fNoteGain = NOTE_GAIN * (0.82 + 0.18 * fBlend);
+
+      this.scheduleTone(nSemitones, this.fNextNoteTime, fNoteGain);
       this.nPatternIndex += 1;
       this.fNextNoteTime += fStepSeconds;
     }
   }
 
-  private scheduleTone(nSemitones: number, fWhen: number): void {
+  private scheduleTone(
+    nSemitones: number,
+    fWhen: number,
+    fGain: number = NOTE_GAIN,
+  ): void {
     if (
       this.oAudioContext === null ||
       this.oToneBuffer === null ||
@@ -177,7 +202,7 @@ export class DynamicMusic {
     oSource.playbackRate.value = semitonesToPlaybackRate(nSemitones);
 
     const oNoteGain = this.oAudioContext.createGain();
-    oNoteGain.gain.value = NOTE_GAIN;
+    oNoteGain.gain.value = fGain;
     oSource.connect(oNoteGain);
     oNoteGain.connect(this.oMasterGain);
 
