@@ -22,11 +22,19 @@ const TREE_NOTE_CHANCE = 0.2;
 const ROCK_FACE_UV_SIZE = 0.12;
 const TREE_FACE_UV_SIZE = 0.15;
 const ROCK_TOP_SCALE = 0.72;
-const TREE_TOP_SCALE = 0.35;
 const TILE_SIZE = CHUNK_SIZE / CHUNK_SEGMENTS;
 const ROCK_EMBED_DEPTH = TILE_SIZE * 0.35;
 const TREE_HEIGHT = TILE_SIZE * 3.5;
 const TREE_BASE_SIZE = TILE_SIZE * 0.55;
+const TREE_TRUNK_WIDTH_SCALE = 0.32;
+const TREE_TRUNK_TOP_SCALE = 0.5;
+const TREE_BRANCH_COUNT = 6;
+const TREE_BRANCH_LENGTH = TILE_SIZE * 0.48;
+const TREE_BRANCH_WIDTH = TILE_SIZE * 0.2;
+const TREE_BRANCH_TOP_SCALE = 0.3;
+const TREE_BRANCH_TILT = 0.35;
+const TREE_BRANCH_HEIGHT_MIN = 0.3;
+const TREE_BRANCH_HEIGHT_RANGE = 0.58;
 const TREE_EMBED_DEPTH = TILE_SIZE * 0.15;
 const TREE_NOTE_MARKER_SIZE = TILE_SIZE * 0.14;
 const TREE_NOTE_MARKER_HEIGHT_FRACTION = 0.25;
@@ -89,7 +97,8 @@ class TerrainChunk {
   private readonly geometry: THREE.BufferGeometry;
   private readonly oFogGeometry: THREE.BufferGeometry;
   private readonly oRockTemplateGeometry: THREE.BufferGeometry;
-  private readonly oTreeTemplateGeometry: THREE.BufferGeometry;
+  private readonly oTreeTrunkTemplateGeometry: THREE.BufferGeometry;
+  private readonly oTreeBranchTemplateGeometry: THREE.BufferGeometry;
   private readonly fTileUvSize: number;
   private readonly aRegisteredTileKeys: string[] = [];
 
@@ -150,10 +159,15 @@ class TerrainChunk {
       TILE_SIZE,
       ROCK_TOP_SCALE,
     );
-    this.oTreeTemplateGeometry = createTruncatedPyramidGeometry(
-      TREE_BASE_SIZE,
+    this.oTreeTrunkTemplateGeometry = createTruncatedPyramidGeometry(
+      TREE_BASE_SIZE * TREE_TRUNK_WIDTH_SCALE,
       TREE_HEIGHT,
-      TREE_TOP_SCALE,
+      TREE_TRUNK_TOP_SCALE,
+    );
+    this.oTreeBranchTemplateGeometry = createTruncatedPyramidGeometry(
+      TREE_BRANCH_WIDTH,
+      TREE_BRANCH_LENGTH,
+      TREE_BRANCH_TOP_SCALE,
     );
     this.buildRocks(
       nChunkX,
@@ -244,18 +258,26 @@ class TerrainChunk {
         const fWorldZ = this.root.position.z + fLocalZ;
         const fHeight = fnSampleHeight(fWorldX, fWorldZ);
 
-        const oTreeGeometry = this.oTreeTemplateGeometry.clone();
+        const oTrunkGeometry = this.oTreeTrunkTemplateGeometry.clone();
+        const fTrunkWidth = TREE_BASE_SIZE * TREE_TRUNK_WIDTH_SCALE;
         applyTreeFaceUvs(
-          oTreeGeometry,
+          oTrunkGeometry,
           TREE_FACE_UV_SIZE,
-          TREE_BASE_SIZE,
+          fTrunkWidth,
           TREE_HEIGHT,
         );
 
-        const oTree = new THREE.Mesh(oTreeGeometry, oTreeMaterial);
+        const oTree = new THREE.Mesh(oTrunkGeometry, oTreeMaterial);
         oTree.position.set(fLocalX, fHeight + fTreeCenterY, fLocalZ);
         oTree.castShadow = true;
         oTree.receiveShadow = true;
+        addTreeBranches(
+          oTree,
+          this.oTreeBranchTemplateGeometry,
+          oTreeMaterial,
+          nTileX,
+          nTileZ,
+        );
         fnAddTreeNoteMarker(nTileX, nTileZ, oTree);
         this.root.add(oTree);
         this.aRegisteredTileKeys.push(
@@ -280,7 +302,8 @@ class TerrainChunk {
     this.geometry.dispose();
     this.oFogGeometry.dispose();
     this.oRockTemplateGeometry.dispose();
-    this.oTreeTemplateGeometry.dispose();
+    this.oTreeTrunkTemplateGeometry.dispose();
+    this.oTreeBranchTemplateGeometry.dispose();
     this.root.traverse((oChild) => {
       if (oChild === this.mesh) {
         return;
@@ -508,10 +531,11 @@ export class Terrain {
     }
 
     const eFeature = oMesh.userData.eFeature as TileFeature;
-    oMesh.material =
-      eFeature === "rock"
-        ? this.oRockHighlightMaterial
-        : this.oTreeHighlightMaterial;
+    if (eFeature === "rock") {
+      oMesh.material = this.oRockHighlightMaterial;
+    } else {
+      setTreeMeshMaterial(oMesh, this.oTreeHighlightMaterial);
+    }
     this.oHighlightedMesh = oMesh;
     this.sHighlightedTileKey = sTileKey;
   }
@@ -598,8 +622,8 @@ export class Terrain {
     }
 
     const fHalfHeight = TREE_HEIGHT * 0.5;
-    const fHalfBottom = TREE_BASE_SIZE * 0.5;
-    const fHalfTop = fHalfBottom * TREE_TOP_SCALE;
+    const fHalfBottom = TREE_BASE_SIZE * TREE_TRUNK_WIDTH_SCALE * 0.5;
+    const fHalfTop = fHalfBottom * TREE_TRUNK_TOP_SCALE;
     const fMarkerY =
       -fHalfHeight + TREE_HEIGHT * TREE_NOTE_MARKER_HEIGHT_FRACTION;
     const fFaceZ =
@@ -650,6 +674,7 @@ export class Terrain {
       this.sHighlightedTileKey = null;
     }
 
+    disposeTreeBranchMeshes(oMesh);
     oMesh.geometry.dispose();
     oMesh.parent?.remove(oMesh);
     this.mFeatureMeshes.delete(sTileKey);
@@ -697,8 +722,11 @@ export class Terrain {
     }
 
     const eFeature = this.oHighlightedMesh.userData.eFeature as TileFeature;
-    this.oHighlightedMesh.material =
-      eFeature === "rock" ? this.oRockMaterial : this.oTreeMaterial;
+    if (eFeature === "rock") {
+      this.oHighlightedMesh.material = this.oRockMaterial;
+    } else {
+      setTreeMeshMaterial(this.oHighlightedMesh, this.oTreeMaterial);
+    }
     this.oHighlightedMesh = null;
     this.sHighlightedTileKey = null;
   }
@@ -933,6 +961,82 @@ function tileHasRock(nTileX: number, nTileZ: number): boolean {
 function tileHasTree(nTileX: number, nTileZ: number): boolean {
   const fHash = hashTile(nTileX, nTileZ);
   return fHash >= ROCK_TILE_CHANCE && fHash < ROCK_TILE_CHANCE + TREE_TILE_CHANCE;
+}
+
+function setTreeMeshMaterial(
+  oTree: THREE.Mesh,
+  oMaterial: THREE.Material,
+): void {
+  oTree.material = oMaterial;
+  for (const oChild of oTree.children) {
+    if (oChild instanceof THREE.Mesh && oChild.userData.bTreeBranch) {
+      oChild.material = oMaterial;
+    }
+  }
+}
+
+function disposeTreeBranchMeshes(oTree: THREE.Mesh): void {
+  for (let i = oTree.children.length - 1; i >= 0; i--) {
+    const oChild = oTree.children[i];
+    if (!(oChild instanceof THREE.Mesh) || !oChild.userData.bTreeBranch) {
+      continue;
+    }
+
+    oChild.geometry.dispose();
+    oTree.remove(oChild);
+  }
+}
+
+function addTreeBranches(
+  oTrunk: THREE.Mesh,
+  oBranchTemplateGeometry: THREE.BufferGeometry,
+  oTreeMaterial: THREE.Material,
+  nTileX: number,
+  nTileZ: number,
+): void {
+  const fHalfHeight = TREE_HEIGHT * 0.5;
+  const fHalfBottom = TREE_BASE_SIZE * TREE_TRUNK_WIDTH_SCALE * 0.5;
+  const fHalfTop = fHalfBottom * TREE_TRUNK_TOP_SCALE;
+  const fBranchHalfLength = TREE_BRANCH_LENGTH * 0.5;
+
+  for (let i = 0; i < TREE_BRANCH_COUNT; i++) {
+    const fHeightT =
+      TREE_BRANCH_HEIGHT_MIN + hashTileSeed(nTileX, nTileZ, i) * TREE_BRANCH_HEIGHT_RANGE;
+    const fAngle = hashTileSeed(nTileX, nTileZ, i + TREE_BRANCH_COUNT) * Math.PI * 2;
+    const fY = -fHalfHeight + fHeightT * TREE_HEIGHT;
+    const fRadius = fHalfBottom + fHeightT * (fHalfTop - fHalfBottom);
+    const fOutX = Math.cos(fAngle);
+    const fOutZ = Math.sin(fAngle);
+
+    const oBranchGeometry = oBranchTemplateGeometry.clone();
+    applyTreeFaceUvs(
+      oBranchGeometry,
+      TREE_FACE_UV_SIZE,
+      TREE_BRANCH_WIDTH,
+      TREE_BRANCH_LENGTH,
+    );
+
+    const fCosTilt = Math.cos(TREE_BRANCH_TILT);
+    const fSinTilt = Math.sin(TREE_BRANCH_TILT);
+    const fDirX = fOutX * fCosTilt;
+    const fDirY = fSinTilt;
+    const fDirZ = fOutZ * fCosTilt;
+
+    const oBranch = new THREE.Mesh(oBranchGeometry, oTreeMaterial);
+    oBranch.position.set(
+      fOutX * fRadius + fDirX * fBranchHalfLength,
+      fY + fDirY * fBranchHalfLength,
+      fOutZ * fRadius + fDirZ * fBranchHalfLength,
+    );
+    oBranch.quaternion.setFromUnitVectors(
+      new THREE.Vector3(0, 1, 0),
+      new THREE.Vector3(fDirX, fDirY, fDirZ),
+    );
+    oBranch.castShadow = true;
+    oBranch.receiveShadow = true;
+    oBranch.userData.bTreeBranch = true;
+    oTrunk.add(oBranch);
+  }
 }
 
 function createTruncatedPyramidGeometry(
