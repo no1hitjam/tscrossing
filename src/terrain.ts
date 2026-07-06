@@ -36,6 +36,7 @@ const TREE_BRANCH_TILT = 0.35;
 const TREE_BRANCH_HEIGHT_MIN = 0.3;
 const TREE_BRANCH_HEIGHT_RANGE = 0.58;
 const TREE_EMBED_DEPTH = TILE_SIZE * 0.15;
+const TREE_BLOCK_TILE_FRACTION = 0.5;
 const TREE_NOTE_MARKER_SIZE = TILE_SIZE * 0.14;
 const TREE_NOTE_MARKER_COLOR = 0xdcd8d0;
 const TREE_NOTE_MARKER_HEIGHT_FRACTION = 0.25;
@@ -50,8 +51,8 @@ const FOG_LAYER_OFFSET = 0.42;
 const FOG_UV_SCALE = 0.01;
 const FOG_OPACITY = 0.25;
 const FOG_COLOR = 0xf0e8f8;
-const FOG_UV_SCROLL_X = 0.015;
-const FOG_UV_SCROLL_Z = 0.008;
+const FOG_UV_SCROLL_X = -0.015;
+const FOG_UV_SCROLL_Z = -0.008;
 
 const A_NDC_CORNERS: ReadonlyArray<readonly [number, number]> = [
   [-1, -1],
@@ -507,8 +508,22 @@ export class Terrain {
     return this.isFeatureActive(nTileX, nTileZ, "tree");
   }
 
+  private isTreeBlockingAt(fWorldX: number, fWorldZ: number): boolean {
+    const { nTileX, nTileZ } = worldToTileCoords(fWorldX, fWorldZ);
+    if (!this.isFeatureActive(nTileX, nTileZ, "tree")) {
+      return false;
+    }
+
+    const { fCenterX, fCenterZ } = tileToWorldCenter(nTileX, nTileZ);
+    const fHalfBlockExtent = (TILE_SIZE * TREE_BLOCK_TILE_FRACTION) * 0.5;
+    return (
+      Math.abs(fWorldX - fCenterX) <= fHalfBlockExtent &&
+      Math.abs(fWorldZ - fCenterZ) <= fHalfBlockExtent
+    );
+  }
+
   isBlockedAt(fWorldX: number, fWorldZ: number): boolean {
-    return this.hasRockAt(fWorldX, fWorldZ) || this.hasTreeAt(fWorldX, fWorldZ);
+    return this.hasRockAt(fWorldX, fWorldZ) || this.isTreeBlockingAt(fWorldX, fWorldZ);
   }
 
   getFeatureAt(fWorldX: number, fWorldZ: number): TileFeature | null {
@@ -934,6 +949,23 @@ function worldToTileCoords(
     Math.floor((fCenterZ + fHalfChunk - fWorldZ) / TILE_SIZE);
 
   return { nTileX, nTileZ };
+}
+
+function tileToWorldCenter(
+  nTileX: number,
+  nTileZ: number,
+): { fCenterX: number; fCenterZ: number } {
+  const nChunkX = Math.floor(nTileX / CHUNK_SEGMENTS);
+  const nChunkZ = Math.floor(nTileZ / CHUNK_SEGMENTS);
+  const ix = nTileX - nChunkX * CHUNK_SEGMENTS;
+  const iy = nTileZ - nChunkZ * CHUNK_SEGMENTS;
+  const fHalfChunk = CHUNK_SIZE * 0.5;
+  const fCenterX =
+    nChunkX * CHUNK_SIZE + (-fHalfChunk + (ix + 0.5) * TILE_SIZE);
+  const fCenterZ =
+    nChunkZ * CHUNK_SIZE + (fHalfChunk - (iy + 0.5) * TILE_SIZE);
+
+  return { fCenterX, fCenterZ };
 }
 
 function hashTile(nTileX: number, nTileZ: number): number {
