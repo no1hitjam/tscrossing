@@ -51,6 +51,10 @@ const FOG_LAYER_OFFSET = 0.42;
 const FOG_UV_SCALE = 0.01;
 const FOG_OPACITY = 0.25;
 const FOG_COLOR = 0xf0e8f8;
+const FOG_DARK_COLOR = 0x141820;
+const FOG_NEAR_RADIUS = 10;
+const FOG_FAR_RADIUS = 18;
+const FOG_FAR_OPACITY_SCALE = 2.2;
 const FOG_UV_SCROLL_X = -0.015;
 const FOG_UV_SCROLL_Z = -0.008;
 
@@ -332,7 +336,18 @@ export class Terrain {
   private readonly mChunks = new Map<string, TerrainChunk>();
   private readonly aMaterials: THREE.Material[];
   private readonly oFogTexture: THREE.CanvasTexture;
-  private readonly oFogMaterial: THREE.Material;
+  private readonly oFogMaterial: THREE.ShaderMaterial;
+  private readonly oFogUniforms: {
+    map: { value: THREE.Texture };
+    uMapOffset: { value: THREE.Vector2 };
+    uPlayerPosition: { value: THREE.Vector2 };
+    uFogColor: { value: THREE.Color };
+    uFogDarkColor: { value: THREE.Color };
+    uFogOpacity: { value: number };
+    uFogNearRadius: { value: number };
+    uFogFarRadius: { value: number };
+    uFogFarOpacityScale: { value: number };
+  };
   private readonly oRockMaterial: THREE.Material;
   private readonly oTreeMaterial: THREE.Material;
   private readonly oNoise = new SimplexNoise();
@@ -374,13 +389,18 @@ export class Terrain {
     ];
 
     this.oFogTexture = createFogNoiseTexture();
-    this.oFogMaterial = new THREE.MeshBasicMaterial({
-      map: this.oFogTexture,
-      color: FOG_COLOR,
-      transparent: true,
-      opacity: FOG_OPACITY,
-      depthWrite: false,
-    });
+    this.oFogUniforms = {
+      map: { value: this.oFogTexture },
+      uMapOffset: { value: new THREE.Vector2() },
+      uPlayerPosition: { value: new THREE.Vector2() },
+      uFogColor: { value: new THREE.Color(FOG_COLOR) },
+      uFogDarkColor: { value: new THREE.Color(FOG_DARK_COLOR) },
+      uFogOpacity: { value: FOG_OPACITY },
+      uFogNearRadius: { value: FOG_NEAR_RADIUS },
+      uFogFarRadius: { value: FOG_FAR_RADIUS },
+      uFogFarOpacityScale: { value: FOG_FAR_OPACITY_SCALE },
+    };
+    this.oFogMaterial = createFogShaderMaterial(this.oFogUniforms);
 
     const oRockTexture = new THREE.TextureLoader().load("/rock.png");
     oRockTexture.wrapS = THREE.RepeatWrapping;
@@ -422,6 +442,7 @@ export class Terrain {
   update(oCamera: THREE.Camera, fDt = 0): void {
     this.oFogTexture.offset.x += FOG_UV_SCROLL_X * fDt;
     this.oFogTexture.offset.y += FOG_UV_SCROLL_Z * fDt;
+    this.oFogUniforms.uMapOffset.value.copy(this.oFogTexture.offset);
 
     const aDesiredKeys = this.getDesiredChunkKeys(oCamera);
     const sDesiredSet = new Set(aDesiredKeys);
@@ -496,6 +517,10 @@ export class Terrain {
 
   sampleHeightAt(fX: number, fZ: number): number {
     return this.sampleHeight(fX, fZ);
+  }
+
+  setFogPlayerPosition(fWorldX: number, fWorldZ: number): void {
+    this.oFogUniforms.uPlayerPosition.value.set(fWorldX, fWorldZ);
   }
 
   hasRockAt(fWorldX: number, fWorldZ: number): boolean {
@@ -859,6 +884,60 @@ function applyFogLayerUvs(
   }
 
   uvs.needsUpdate = true;
+}
+
+function createFogShaderMaterial(
+  oUniforms: {
+    map: { value: THREE.Texture };
+    uMapOffset: { value: THREE.Vector2 };
+    uPlayerPosition: { value: THREE.Vector2 };
+    uFogColor: { value: THREE.Color };
+    uFogDarkColor: { value: THREE.Color };
+    uFogOpacity: { value: number };
+    uFogNearRadius: { value: number };
+    uFogFarRadius: { value: number };
+    uFogFarOpacityScale: { value: number };
+  },
+): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: oUniforms,
+    vertexShader: `
+      varying vec2 vUv;
+      varying vec2 vWorldXZ;
+
+      void main() {
+        vUv = uv;
+        vec4 oWorldPosition = modelMatrix * vec4(position, 1.0);
+        vWorldXZ = oWorldPosition.xz;
+        gl_Position = projectionMatrix * viewMatrix * oWorldPosition;
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D map;
+      uniform vec2 uMapOffset;
+      uniform vec2 uPlayerPosition;
+      uniform vec3 uFogColor;
+      uniform vec3 uFogDarkColor;
+      uniform float uFogOpacity;
+      uniform float uFogNearRadius;
+      uniform float uFogFarRadius;
+      uniform float uFogFarOpacityScale;
+
+      varying vec2 vUv;
+      varying vec2 vWorldXZ;
+
+      void main() {
+        vec4 oTex = texture2D(map, vUv + uMapOffset);
+        float fDistance = length(vWorldXZ - uPlayerPosition);
+        float fDarkBlend = smoothstep(uFogNearRadius, uFogFarRadius, fDistance);
+        vec3 vColor = mix(uFogColor, uFogDarkColor, fDarkBlend);
+        float fOpacity = uFogOpacity * mix(1.0, uFogFarOpacityScale, fDarkBlend);
+        gl_FragColor = vec4(vColor, oTex.a * fOpacity);
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+  });
 }
 
 function createFogNoiseTexture(): THREE.CanvasTexture {

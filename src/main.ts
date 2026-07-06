@@ -76,7 +76,7 @@ const SHADOW_HALF_EXTENT = 40;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb);
-scene.fog = new THREE.Fog(0x87ceeb, 120, 280);
+scene.fog = new THREE.Fog(0x3a4555, 90, 240);
 
 const camera = new THREE.PerspectiveCamera(
   60,
@@ -262,6 +262,7 @@ function animate(): void {
   );
 
   terrain.update(camera, dt);
+  terrain.setFogPlayerPosition(player.position.x, player.position.z);
   terrain.updateTargetHighlight(player.vTarget.x, player.vTarget.z);
 
   const bSpaceDown = keys["Space"] ?? false;
