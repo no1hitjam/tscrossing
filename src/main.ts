@@ -5,6 +5,7 @@ import {
   saveInventoryToCookie,
 } from "./inventory-cookie";
 import { PappusParticles } from "./pappus-particles";
+import { SnowParticles } from "./snow-particles";
 import { Player } from "./player";
 import { Terrain } from "./terrain";
 import { DynamicMusic } from "./dynamic-music";
@@ -153,6 +154,11 @@ const helicopterSeedParticles = new HelicopterSeedParticles(
   terrain.sampleHeightAt.bind(terrain),
 );
 scene.add(helicopterSeedParticles.root);
+
+const snowParticles = new SnowParticles(
+  terrain.sampleHeightAt.bind(terrain),
+);
+scene.add(snowParticles.root);
 
 const CAMERA_HEIGHT = 10;
 const CAMERA_DISTANCE = 8;
@@ -303,6 +309,7 @@ function animate(): void {
   updateShadowLight();
   pappusParticles.update(dt, camera, player.position);
   helicopterSeedParticles.update(dt, player.position);
+  snowParticles.update(dt, camera, player.position);
 
   oDynamicMusic.setPlayerMoving(isPlayerMoving());
   oDynamicMusic.updateFootsteps(
