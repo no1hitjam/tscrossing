@@ -297,9 +297,11 @@ function animate(): void {
           } else if (oDamage.eFeature === "rock") {
             void oDynamicMusic.playRocksFall();
           }
-          player.collectResource(oDamage.eFeature);
-          updateInventoryHud();
-          persistInventory();
+          if (oDamage.eFeature === "rock" || oDamage.eFeature === "tree") {
+            player.collectResource(oDamage.eFeature);
+            updateInventoryHud();
+            persistInventory();
+          }
         }
       }
     }

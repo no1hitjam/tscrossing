@@ -18,12 +18,21 @@ const TERRAIN_HEIGHT_RANGE = MACRO_HEIGHT_SCALE + HEIGHT_SCALE;
 const DIRT_TILE_CHANCE = 0.1;
 const ROCK_TILE_CHANCE = 0.06;
 const TREE_TILE_CHANCE = 0.05;
+const BUSH_TILE_CHANCE = 0.04;
 const TREE_NOTE_CHANCE = 0.02;
 const ROCK_FACE_UV_SIZE = 0.12;
 const TREE_FACE_UV_SIZE = 0.15;
 const ROCK_TOP_SCALE = 0.72;
 const TILE_SIZE = CHUNK_SIZE / CHUNK_SEGMENTS;
 const ROCK_EMBED_DEPTH = TILE_SIZE * 0.35;
+const BUSH_HEIGHT = TILE_SIZE * 0.55;
+const BUSH_BASE_SIZE = TILE_SIZE * 0.95;
+const BUSH_TOP_SCALE = 0.68;
+const BUSH_FACE_UV_SIZE = 0.12;
+const BUSH_EMBED_DEPTH = TILE_SIZE * 0.12;
+const BUSH_SIZE_MIN = 0.4;
+const BUSH_SIZE_MAX = 1.05;
+const BUSH_POSITION_OFFSET = TILE_SIZE * 0.38;
 const TREE_HEIGHT = TILE_SIZE * 3.5;
 const TREE_BASE_SIZE = TILE_SIZE * 0.55;
 const TREE_TRUNK_WIDTH_SCALE = 0.32;
@@ -111,6 +120,7 @@ class TerrainChunk {
   private readonly geometry: THREE.BufferGeometry;
   private readonly oFogGeometry: THREE.BufferGeometry;
   private readonly oRockTemplateGeometry: THREE.BufferGeometry;
+  private readonly oBushTemplateGeometry: THREE.BufferGeometry;
   private readonly oTreeTrunkTemplateGeometry: THREE.BufferGeometry;
   private readonly oTreeBranchTemplateGeometry: THREE.BufferGeometry;
   private readonly fTileUvSize: number;
@@ -122,6 +132,7 @@ class TerrainChunk {
     aMaterials: THREE.Material[],
     oFogMaterial: THREE.Material,
     oRockMaterial: THREE.Material,
+    oBushMaterial: THREE.Material,
     oTreeMaterial: THREE.Material,
     fnSampleHeight: SampleHeightFn,
     fnRegisterFeatureMesh: RegisterFeatureMeshFn,
@@ -179,6 +190,11 @@ class TerrainChunk {
       TILE_SIZE,
       ROCK_TOP_SCALE,
     );
+    this.oBushTemplateGeometry = createTruncatedPyramidGeometry(
+      BUSH_BASE_SIZE,
+      BUSH_HEIGHT,
+      BUSH_TOP_SCALE,
+    );
     this.oTreeTrunkTemplateGeometry = createTruncatedPyramidGeometry(
       TREE_BASE_SIZE * TREE_TRUNK_WIDTH_SCALE,
       TREE_HEIGHT,
@@ -196,6 +212,12 @@ class TerrainChunk {
       fnSampleHeight,
       fnRegisterFeatureMesh,
       fnIsFeatureActive,
+    );
+    this.buildBushes(
+      nChunkX,
+      nChunkZ,
+      oBushMaterial,
+      fnSampleHeight,
     );
     this.buildTrees(
       nChunkX,
@@ -248,6 +270,51 @@ class TerrainChunk {
         this.aRegisteredTileKeys.push(
           fnRegisterFeatureMesh(nTileX, nTileZ, "rock", oRock),
         );
+      }
+    }
+  }
+
+  private buildBushes(
+    nChunkX: number,
+    nChunkZ: number,
+    oBushMaterial: THREE.Material,
+    fnSampleHeight: SampleHeightFn,
+  ): void {
+    const fHalfChunk = CHUNK_SIZE * 0.5;
+    const fBushCenterY = BUSH_HEIGHT * 0.5 - BUSH_EMBED_DEPTH;
+
+    for (let iy = 0; iy < CHUNK_SEGMENTS; iy++) {
+      for (let ix = 0; ix < CHUNK_SEGMENTS; ix++) {
+        const nTileX = nChunkX * CHUNK_SEGMENTS + ix;
+        const nTileZ = nChunkZ * CHUNK_SEGMENTS + iy;
+        if (!tileHasBush(nTileX, nTileZ)) {
+          continue;
+        }
+
+        const fOffsetX =
+          (hashTileSeed(nTileX, nTileZ, 6) - 0.5) * 2 * BUSH_POSITION_OFFSET;
+        const fOffsetZ =
+          (hashTileSeed(nTileX, nTileZ, 7) - 0.5) * 2 * BUSH_POSITION_OFFSET;
+        const fLocalX = -fHalfChunk + (ix + 0.5) * TILE_SIZE + fOffsetX;
+        const fLocalZ = fHalfChunk - (iy + 0.5) * TILE_SIZE + fOffsetZ;
+        const fWorldX = this.root.position.x + fLocalX;
+        const fWorldZ = this.root.position.z + fLocalZ;
+        const fHeight = fnSampleHeight(fWorldX, fWorldZ);
+
+        const fSizeScale =
+          BUSH_SIZE_MIN +
+          hashTileSeed(nTileX, nTileZ, 5) * (BUSH_SIZE_MAX - BUSH_SIZE_MIN);
+
+        const oBushGeometry = this.oBushTemplateGeometry.clone();
+        applyRockFaceUvs(oBushGeometry, BUSH_FACE_UV_SIZE);
+
+        const oBush = new THREE.Mesh(oBushGeometry, oBushMaterial);
+        oBush.scale.setScalar(fSizeScale);
+        oBush.position.set(fLocalX, fHeight + fBushCenterY * fSizeScale, fLocalZ);
+        oBush.rotation.y = hashTileSeed(nTileX, nTileZ, 4) * Math.PI * 2;
+        oBush.castShadow = true;
+        oBush.receiveShadow = true;
+        this.root.add(oBush);
       }
     }
   }
@@ -322,6 +389,7 @@ class TerrainChunk {
     this.geometry.dispose();
     this.oFogGeometry.dispose();
     this.oRockTemplateGeometry.dispose();
+    this.oBushTemplateGeometry.dispose();
     this.oTreeTrunkTemplateGeometry.dispose();
     this.oTreeBranchTemplateGeometry.dispose();
     this.root.traverse((oChild) => {
@@ -363,6 +431,7 @@ export class Terrain {
     uFogSunBlend: { value: number };
   };
   private readonly oRockMaterial: THREE.Material;
+  private readonly oBushMaterial: THREE.Material;
   private readonly oTreeMaterial: THREE.Material;
   private readonly oNoise = new SimplexNoise();
   private readonly oFrustum = new THREE.Frustum();
@@ -431,6 +500,16 @@ export class Terrain {
       flatShading: true,
     });
 
+    const oBushTexture = new THREE.TextureLoader().load("/bush.png");
+    oBushTexture.wrapS = THREE.RepeatWrapping;
+    oBushTexture.wrapT = THREE.RepeatWrapping;
+    oBushTexture.colorSpace = THREE.SRGBColorSpace;
+
+    this.oBushMaterial = new THREE.MeshStandardMaterial({
+      map: oBushTexture,
+      flatShading: true,
+    });
+
     const oTreeBarkTexture = new THREE.TextureLoader().load("/TreeBark.png");
     oTreeBarkTexture.wrapS = THREE.RepeatWrapping;
     oTreeBarkTexture.wrapT = THREE.RepeatWrapping;
@@ -478,6 +557,7 @@ export class Terrain {
         this.aMaterials,
         this.oFogMaterial,
         this.oRockMaterial,
+        this.oBushMaterial,
         this.oTreeMaterial,
         this.sampleHeight.bind(this),
         this.registerFeatureMesh.bind(this),
@@ -1148,6 +1228,14 @@ function tileHasRock(nTileX: number, nTileZ: number): boolean {
 function tileHasTree(nTileX: number, nTileZ: number): boolean {
   const fHash = hashTile(nTileX, nTileZ);
   return fHash >= ROCK_TILE_CHANCE && fHash < ROCK_TILE_CHANCE + TREE_TILE_CHANCE;
+}
+
+function tileHasBush(nTileX: number, nTileZ: number): boolean {
+  const fHash = hashTile(nTileX, nTileZ);
+  return (
+    fHash >= ROCK_TILE_CHANCE + TREE_TILE_CHANCE &&
+    fHash < ROCK_TILE_CHANCE + TREE_TILE_CHANCE + BUSH_TILE_CHANCE
+  );
 }
 
 function tileIsDirt(nTileX: number, nTileZ: number): boolean {
