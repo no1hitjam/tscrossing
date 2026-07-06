@@ -68,17 +68,17 @@ const MAX_ACTIVE_CHUNKS = 50;
 const QUADS_UPDATED_PER_FRAME = 4;
 const FOG_LAYER_OFFSET = 0.42;
 const FOG_UV_SCALE = 0.01;
-const FOG_OPACITY = 0.25;
+const FOG_OPACITY = 0.17;
 const FOG_COLOR = 0xf0e8f8;
 const FOG_DARK_COLOR = 0x141820;
 const FOG_NEAR_RADIUS = 10;
 const FOG_FAR_RADIUS = 18;
-const FOG_FAR_OPACITY_SCALE = 2.2;
+const FOG_FAR_OPACITY_SCALE = 1.55;
 const FOG_UV_SCROLL_X = -0.015;
 const FOG_UV_SCROLL_Z = -0.008;
 const FOG_SUN_COLOR = 0xfff4dc;
 const FOG_SUN_UV_SCALE = 0.002;
-const FOG_SUN_BLEND = 0.6;
+const FOG_SUN_BLEND = 0.38;
 
 const A_NDC_CORNERS: ReadonlyArray<readonly [number, number]> = [
   [-1, -1],

@@ -13,6 +13,7 @@ import { CubeDeerActors } from "./cube-deer";
 import { DayNightCycle } from "./day-night-cycle";
 import { DynamicMusic } from "./dynamic-music";
 import { loadNoteText, renderNoteHtml } from "./tree-notes";
+import { VhsFilter } from "./vhs-filter";
 
 const GAME_KEY_CODES = new Set([
   "KeyW",
@@ -80,7 +81,7 @@ const SHADOW_HALF_EXTENT = 40;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb);
-scene.fog = new THREE.Fog(0x3a4555, 90, 240);
+scene.fog = new THREE.Fog(0x3a4555, 105, 265);
 
 const camera = new THREE.PerspectiveCamera(
   60,
@@ -98,6 +99,8 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.domElement.tabIndex = 0;
 renderer.domElement.style.outline = "none";
 document.body.appendChild(renderer.domElement);
+
+const oVhsFilter = new VhsFilter(renderer, scene, camera);
 
 const oDynamicMusic = new DynamicMusic();
 let bMusicStarted = false;
@@ -126,10 +129,10 @@ renderer.domElement.addEventListener("pointerdown", () => {
 window.addEventListener("load", focusGame);
 focusGame();
 
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.55);
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.715);
 scene.add(ambientLight);
 
-const sunLight = new THREE.DirectionalLight(0xffffff, 1.1);
+const sunLight = new THREE.DirectionalLight(0xffffff, 1.43);
 sunLight.castShadow = true;
 sunLight.shadow.mapSize.set(2048, 2048);
 sunLight.shadow.camera.left = -SHADOW_HALF_EXTENT;
@@ -190,6 +193,7 @@ window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  oVhsFilter.setSize(renderer, window.innerWidth, window.innerHeight);
 });
 
 const clock = new THREE.Clock();
@@ -353,7 +357,7 @@ function animate(): void {
   );
   oDynamicMusic.update();
 
-  renderer.render(scene, camera);
+  oVhsFilter.render(dt);
 }
 
 animate();

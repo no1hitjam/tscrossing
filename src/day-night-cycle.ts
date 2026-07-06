@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type { Terrain } from "./terrain";
 
 const CYCLE_SECONDS = 300;
+const LIGHT_INTENSITY_SCALE = 3.3;
 const SUN_ORBIT_DISTANCE = 42;
 const SUN_MIN_HEIGHT = 2;
 const SUN_MAX_HEIGHT = 38;
@@ -19,40 +20,40 @@ const SKY_COLOR_STOPS: ReadonlyArray<{ fPhase: number; nColor: number }> = [
 ];
 
 const FOG_COLOR_STOPS: ReadonlyArray<{ fPhase: number; nColor: number }> = [
-  { fPhase: 0.0, nColor: 0x0a1018 },
+  { fPhase: 0.0, nColor: 0x0c1838 },
   { fPhase: 0.24, nColor: 0x4a3848 },
   { fPhase: 0.5, nColor: 0x3a4555 },
   { fPhase: 0.76, nColor: 0x4a3840 },
-  { fPhase: 1.0, nColor: 0x0a1018 },
+  { fPhase: 1.0, nColor: 0x0c1838 },
 ];
 
 const FOG_LAYER_COLOR_STOPS: ReadonlyArray<{ fPhase: number; nColor: number }> =
   [
-    { fPhase: 0.0, nColor: 0x8890a8 },
+    { fPhase: 0.0, nColor: 0x4a6898 },
     { fPhase: 0.24, nColor: 0xf0c8b0 },
     { fPhase: 0.5, nColor: 0xf0e8f8 },
     { fPhase: 0.76, nColor: 0xf0c0a8 },
-    { fPhase: 1.0, nColor: 0x8890a8 },
+    { fPhase: 1.0, nColor: 0x4a6898 },
   ];
 
 const FOG_LAYER_DARK_COLOR_STOPS: ReadonlyArray<{
   fPhase: number;
   nColor: number;
 }> = [
-  { fPhase: 0.0, nColor: 0x060810 },
+  { fPhase: 0.0, nColor: 0x081028 },
   { fPhase: 0.24, nColor: 0x201820 },
   { fPhase: 0.5, nColor: 0x141820 },
   { fPhase: 0.76, nColor: 0x201818 },
-  { fPhase: 1.0, nColor: 0x060810 },
+  { fPhase: 1.0, nColor: 0x081028 },
 ];
 
 const FOG_SUN_COLOR_STOPS: ReadonlyArray<{ fPhase: number; nColor: number }> =
   [
-    { fPhase: 0.0, nColor: 0x8090b8 },
+    { fPhase: 0.0, nColor: 0x5068a0 },
     { fPhase: 0.24, nColor: 0xffd8a0 },
     { fPhase: 0.5, nColor: 0xfff4dc },
     { fPhase: 0.76, nColor: 0xffc090 },
-    { fPhase: 1.0, nColor: 0x8090b8 },
+    { fPhase: 1.0, nColor: 0x5068a0 },
   ];
 
 const AMBIENT_COLOR_STOPS: ReadonlyArray<{ fPhase: number; nColor: number }> =
@@ -168,28 +169,30 @@ export class DayNightCycle {
     sampleColorStops(fPhase, AMBIENT_COLOR_STOPS, this.oAmbientColor);
     sampleColorStops(fPhase, SUN_COLOR_STOPS, this.oSunColor);
 
-    const fAmbientIntensity = sampleScalarStops(fPhase, [
-      { fPhase: 0.0, fValue: 0.22 },
-      { fPhase: 0.24, fValue: 0.42 },
-      { fPhase: 0.5, fValue: 0.55 },
-      { fPhase: 0.76, fValue: 0.42 },
-      { fPhase: 1.0, fValue: 0.22 },
-    ]);
+    const fAmbientIntensity =
+      sampleScalarStops(fPhase, [
+        { fPhase: 0.0, fValue: 0.22 },
+        { fPhase: 0.24, fValue: 0.42 },
+        { fPhase: 0.5, fValue: 0.55 },
+        { fPhase: 0.76, fValue: 0.42 },
+        { fPhase: 1.0, fValue: 0.22 },
+      ]) * LIGHT_INTENSITY_SCALE;
 
-    const fSunIntensity = sampleScalarStops(fPhase, [
-      { fPhase: 0.0, fValue: 0.08 },
-      { fPhase: 0.24, fValue: 0.55 },
-      { fPhase: 0.5, fValue: 1.1 },
-      { fPhase: 0.76, fValue: 0.55 },
-      { fPhase: 1.0, fValue: 0.08 },
-    ]);
+    const fSunIntensity =
+      sampleScalarStops(fPhase, [
+        { fPhase: 0.0, fValue: 0.08 },
+        { fPhase: 0.24, fValue: 0.55 },
+        { fPhase: 0.5, fValue: 1.1 },
+        { fPhase: 0.76, fValue: 0.55 },
+        { fPhase: 1.0, fValue: 0.08 },
+      ]) * LIGHT_INTENSITY_SCALE;
 
     const fFogSunBlend = sampleScalarStops(fPhase, [
-      { fPhase: 0.0, fValue: 0.15 },
-      { fPhase: 0.24, fValue: 0.45 },
-      { fPhase: 0.5, fValue: 0.6 },
-      { fPhase: 0.76, fValue: 0.45 },
-      { fPhase: 1.0, fValue: 0.15 },
+      { fPhase: 0.0, fValue: 0.1 },
+      { fPhase: 0.24, fValue: 0.3 },
+      { fPhase: 0.5, fValue: 0.38 },
+      { fPhase: 0.76, fValue: 0.3 },
+      { fPhase: 1.0, fValue: 0.1 },
     ]);
 
     const { oScene, oAmbientLight, oSunLight, oTerrain } = this.oTargets;
