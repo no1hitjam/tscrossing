@@ -19,6 +19,7 @@ const DIRT_TILE_CHANCE = 0.1;
 const ROCK_TILE_CHANCE = 0.06;
 const TREE_TILE_CHANCE = 0.05;
 const BUSH_TILE_CHANCE = 0.04;
+const MUSHROOM_TILE_CHANCE = 0.02;
 const TREE_NOTE_CHANCE = 0.02;
 const ROCK_FACE_UV_SIZE = 0.12;
 const TREE_FACE_UV_SIZE = 0.15;
@@ -33,6 +34,14 @@ const BUSH_EMBED_DEPTH = TILE_SIZE * 0.12;
 const BUSH_SIZE_MIN = 0.4;
 const BUSH_SIZE_MAX = 1.05;
 const BUSH_POSITION_OFFSET = TILE_SIZE * 0.38;
+const MUSHROOM_HEIGHT = TILE_SIZE * 0.35;
+const MUSHROOM_BASE_SIZE = TILE_SIZE * 0.55;
+const MUSHROOM_TOP_SCALE = 0.68;
+const MUSHROOM_FACE_UV_SIZE = 0.02;
+const MUSHROOM_EMBED_DEPTH = TILE_SIZE * 0.08;
+const MUSHROOM_SIZE_MIN = 0.3;
+const MUSHROOM_SIZE_MAX = 0.85;
+const MUSHROOM_POSITION_OFFSET = TILE_SIZE * 0.28;
 const TREE_HEIGHT = TILE_SIZE * 3.5;
 const TREE_BASE_SIZE = TILE_SIZE * 0.55;
 const TREE_TRUNK_WIDTH_SCALE = 0.32;
@@ -53,6 +62,7 @@ const TREE_NOTE_MARKER_Z_OFFSET = 0.02;
 const HIGHLIGHT_EMISSIVE = 0x999999;
 const HIGHLIGHT_EMISSIVE_INTENSITY = 0.1;
 const FEATURE_MAX_HEALTH = 4;
+const MUSHROOM_MAX_HEALTH = 1;
 const CHUNK_PADDING = 2;
 const MAX_ACTIVE_CHUNKS = 50;
 const QUADS_UPDATED_PER_FRAME = 4;
@@ -78,7 +88,7 @@ const A_NDC_CORNERS: ReadonlyArray<readonly [number, number]> = [
 ];
 
 type SampleHeightFn = (fX: number, fZ: number) => number;
-export type TileFeature = "rock" | "tree";
+export type TileFeature = "rock" | "tree" | "mushroom";
 
 export type FeatureDamageResult = {
   eFeature: TileFeature;
@@ -121,6 +131,7 @@ class TerrainChunk {
   private readonly oFogGeometry: THREE.BufferGeometry;
   private readonly oRockTemplateGeometry: THREE.BufferGeometry;
   private readonly oBushTemplateGeometry: THREE.BufferGeometry;
+  private readonly oMushroomTemplateGeometry: THREE.BufferGeometry;
   private readonly oTreeTrunkTemplateGeometry: THREE.BufferGeometry;
   private readonly oTreeBranchTemplateGeometry: THREE.BufferGeometry;
   private readonly fTileUvSize: number;
@@ -133,6 +144,7 @@ class TerrainChunk {
     oFogMaterial: THREE.Material,
     oRockMaterial: THREE.Material,
     oBushMaterial: THREE.Material,
+    oMushroomMaterial: THREE.Material,
     oTreeMaterial: THREE.Material,
     fnSampleHeight: SampleHeightFn,
     fnRegisterFeatureMesh: RegisterFeatureMeshFn,
@@ -195,6 +207,11 @@ class TerrainChunk {
       BUSH_HEIGHT,
       BUSH_TOP_SCALE,
     );
+    this.oMushroomTemplateGeometry = createTruncatedPyramidGeometry(
+      MUSHROOM_BASE_SIZE,
+      MUSHROOM_HEIGHT,
+      MUSHROOM_TOP_SCALE,
+    );
     this.oTreeTrunkTemplateGeometry = createTruncatedPyramidGeometry(
       TREE_BASE_SIZE * TREE_TRUNK_WIDTH_SCALE,
       TREE_HEIGHT,
@@ -218,6 +235,14 @@ class TerrainChunk {
       nChunkZ,
       oBushMaterial,
       fnSampleHeight,
+    );
+    this.buildMushrooms(
+      nChunkX,
+      nChunkZ,
+      oMushroomMaterial,
+      fnSampleHeight,
+      fnRegisterFeatureMesh,
+      fnIsFeatureActive,
     );
     this.buildTrees(
       nChunkX,
@@ -319,6 +344,60 @@ class TerrainChunk {
     }
   }
 
+  private buildMushrooms(
+    nChunkX: number,
+    nChunkZ: number,
+    oMushroomMaterial: THREE.Material,
+    fnSampleHeight: SampleHeightFn,
+    fnRegisterFeatureMesh: RegisterFeatureMeshFn,
+    fnIsFeatureActive: IsFeatureActiveFn,
+  ): void {
+    const fHalfChunk = CHUNK_SIZE * 0.5;
+    const fMushroomCenterY = MUSHROOM_HEIGHT * 0.5 - MUSHROOM_EMBED_DEPTH;
+
+    for (let iy = 0; iy < CHUNK_SEGMENTS; iy++) {
+      for (let ix = 0; ix < CHUNK_SEGMENTS; ix++) {
+        const nTileX = nChunkX * CHUNK_SEGMENTS + ix;
+        const nTileZ = nChunkZ * CHUNK_SEGMENTS + iy;
+        if (!fnIsFeatureActive(nTileX, nTileZ, "mushroom")) {
+          continue;
+        }
+
+        const fOffsetX =
+          (hashTileSeed(nTileX, nTileZ, 10) - 0.5) * 2 * MUSHROOM_POSITION_OFFSET;
+        const fOffsetZ =
+          (hashTileSeed(nTileX, nTileZ, 11) - 0.5) * 2 * MUSHROOM_POSITION_OFFSET;
+        const fLocalX = -fHalfChunk + (ix + 0.5) * TILE_SIZE + fOffsetX;
+        const fLocalZ = fHalfChunk - (iy + 0.5) * TILE_SIZE + fOffsetZ;
+        const fWorldX = this.root.position.x + fLocalX;
+        const fWorldZ = this.root.position.z + fLocalZ;
+        const fHeight = fnSampleHeight(fWorldX, fWorldZ);
+
+        const fSizeScale =
+          MUSHROOM_SIZE_MIN +
+          hashTileSeed(nTileX, nTileZ, 9) * (MUSHROOM_SIZE_MAX - MUSHROOM_SIZE_MIN);
+
+        const oMushroomGeometry = this.oMushroomTemplateGeometry.clone();
+        applyRockFaceUvs(oMushroomGeometry, MUSHROOM_FACE_UV_SIZE);
+
+        const oMushroom = new THREE.Mesh(oMushroomGeometry, oMushroomMaterial);
+        oMushroom.scale.setScalar(fSizeScale);
+        oMushroom.position.set(
+          fLocalX,
+          fHeight + fMushroomCenterY * fSizeScale,
+          fLocalZ,
+        );
+        oMushroom.rotation.y = hashTileSeed(nTileX, nTileZ, 8) * Math.PI * 2;
+        oMushroom.castShadow = true;
+        oMushroom.receiveShadow = true;
+        this.root.add(oMushroom);
+        this.aRegisteredTileKeys.push(
+          fnRegisterFeatureMesh(nTileX, nTileZ, "mushroom", oMushroom),
+        );
+      }
+    }
+  }
+
   private buildTrees(
     nChunkX: number,
     nChunkZ: number,
@@ -390,6 +469,7 @@ class TerrainChunk {
     this.oFogGeometry.dispose();
     this.oRockTemplateGeometry.dispose();
     this.oBushTemplateGeometry.dispose();
+    this.oMushroomTemplateGeometry.dispose();
     this.oTreeTrunkTemplateGeometry.dispose();
     this.oTreeBranchTemplateGeometry.dispose();
     this.root.traverse((oChild) => {
@@ -432,6 +512,7 @@ export class Terrain {
   };
   private readonly oRockMaterial: THREE.Material;
   private readonly oBushMaterial: THREE.Material;
+  private readonly oMushroomMaterial: THREE.Material;
   private readonly oTreeMaterial: THREE.Material;
   private readonly oNoise = new SimplexNoise();
   private readonly oFrustum = new THREE.Frustum();
@@ -444,6 +525,7 @@ export class Terrain {
   private readonly mCollectedTreeNotes = new Set<string>();
   private readonly oRockHighlightMaterial: THREE.MeshStandardMaterial;
   private readonly oTreeHighlightMaterial: THREE.MeshStandardMaterial;
+  private readonly oMushroomHighlightMaterial: THREE.MeshStandardMaterial;
   private readonly oNoteMarkerGeometry: THREE.PlaneGeometry;
   private readonly oNoteMarkerMaterial: THREE.MeshBasicMaterial;
   private oHighlightedMesh: THREE.Mesh | null = null;
@@ -510,6 +592,16 @@ export class Terrain {
       flatShading: true,
     });
 
+    const oMushroomTexture = new THREE.TextureLoader().load("/mushroom.png");
+    oMushroomTexture.wrapS = THREE.RepeatWrapping;
+    oMushroomTexture.wrapT = THREE.RepeatWrapping;
+    oMushroomTexture.colorSpace = THREE.SRGBColorSpace;
+
+    this.oMushroomMaterial = new THREE.MeshStandardMaterial({
+      map: oMushroomTexture,
+      flatShading: true,
+    });
+
     const oTreeBarkTexture = new THREE.TextureLoader().load("/TreeBark.png");
     oTreeBarkTexture.wrapS = THREE.RepeatWrapping;
     oTreeBarkTexture.wrapT = THREE.RepeatWrapping;
@@ -527,6 +619,10 @@ export class Terrain {
     this.oTreeHighlightMaterial = this.oTreeMaterial.clone() as THREE.MeshStandardMaterial;
     this.oTreeHighlightMaterial.emissive.setHex(HIGHLIGHT_EMISSIVE);
     this.oTreeHighlightMaterial.emissiveIntensity = HIGHLIGHT_EMISSIVE_INTENSITY;
+
+    this.oMushroomHighlightMaterial = this.oMushroomMaterial.clone() as THREE.MeshStandardMaterial;
+    this.oMushroomHighlightMaterial.emissive.setHex(HIGHLIGHT_EMISSIVE);
+    this.oMushroomHighlightMaterial.emissiveIntensity = HIGHLIGHT_EMISSIVE_INTENSITY;
 
     this.oNoteMarkerGeometry = new THREE.PlaneGeometry(
       TREE_NOTE_MARKER_SIZE,
@@ -558,6 +654,7 @@ export class Terrain {
         this.oFogMaterial,
         this.oRockMaterial,
         this.oBushMaterial,
+        this.oMushroomMaterial,
         this.oTreeMaterial,
         this.sampleHeight.bind(this),
         this.registerFeatureMesh.bind(this),
@@ -632,6 +729,11 @@ export class Terrain {
     return this.isFeatureActive(nTileX, nTileZ, "tree");
   }
 
+  hasMushroomAt(fWorldX: number, fWorldZ: number): boolean {
+    const { nTileX, nTileZ } = worldToTileCoords(fWorldX, fWorldZ);
+    return this.isFeatureActive(nTileX, nTileZ, "mushroom");
+  }
+
   private isTreeBlockingAt(fWorldX: number, fWorldZ: number): boolean {
     const { nTileX, nTileZ } = worldToTileCoords(fWorldX, fWorldZ);
     if (!this.isFeatureActive(nTileX, nTileZ, "tree")) {
@@ -664,6 +766,10 @@ export class Terrain {
       return "tree";
     }
 
+    if (this.hasMushroomAt(fWorldX, fWorldZ)) {
+      return "mushroom";
+    }
+
     return null;
   }
 
@@ -685,6 +791,8 @@ export class Terrain {
     const eFeature = oMesh.userData.eFeature as TileFeature;
     if (eFeature === "rock") {
       oMesh.material = this.oRockHighlightMaterial;
+    } else if (eFeature === "mushroom") {
+      oMesh.material = this.oMushroomHighlightMaterial;
     } else {
       setTreeMeshMaterial(oMesh, this.oTreeHighlightMaterial);
     }
@@ -751,8 +859,9 @@ export class Terrain {
 
     const sTileKey = this.sHighlightedTileKey;
     const eFeature = this.oHighlightedMesh.userData.eFeature as TileFeature;
-    const nHealth =
-      (this.mFeatureHealth.get(sTileKey) ?? FEATURE_MAX_HEALTH) - 1;
+    const nMaxHealth =
+      eFeature === "mushroom" ? MUSHROOM_MAX_HEALTH : FEATURE_MAX_HEALTH;
+    const nHealth = (this.mFeatureHealth.get(sTileKey) ?? nMaxHealth) - 1;
 
     if (nHealth <= 0) {
       this.destroyFeature(sTileKey);
@@ -804,7 +913,9 @@ export class Terrain {
 
     return eFeature === "rock"
       ? tileHasRock(nTileX, nTileZ)
-      : tileHasTree(nTileX, nTileZ);
+      : eFeature === "tree"
+        ? tileHasTree(nTileX, nTileZ)
+        : tileHasMushroom(nTileX, nTileZ);
   }
 
   private destroyFeature(sTileKey: string): void {
@@ -850,7 +961,10 @@ export class Terrain {
       );
     }
     if (!this.mFeatureHealth.has(sTileKey)) {
-      this.mFeatureHealth.set(sTileKey, FEATURE_MAX_HEALTH);
+      this.mFeatureHealth.set(
+        sTileKey,
+        eFeature === "mushroom" ? MUSHROOM_MAX_HEALTH : FEATURE_MAX_HEALTH,
+      );
     }
 
     this.mFeatureMeshes.set(sTileKey, oMesh);
@@ -876,6 +990,8 @@ export class Terrain {
     const eFeature = this.oHighlightedMesh.userData.eFeature as TileFeature;
     if (eFeature === "rock") {
       this.oHighlightedMesh.material = this.oRockMaterial;
+    } else if (eFeature === "mushroom") {
+      this.oHighlightedMesh.material = this.oMushroomMaterial;
     } else {
       setTreeMeshMaterial(this.oHighlightedMesh, this.oTreeMaterial);
     }
@@ -1235,6 +1351,15 @@ function tileHasBush(nTileX: number, nTileZ: number): boolean {
   return (
     fHash >= ROCK_TILE_CHANCE + TREE_TILE_CHANCE &&
     fHash < ROCK_TILE_CHANCE + TREE_TILE_CHANCE + BUSH_TILE_CHANCE
+  );
+}
+
+function tileHasMushroom(nTileX: number, nTileZ: number): boolean {
+  const fHash = hashTile(nTileX, nTileZ);
+  return (
+    fHash >= ROCK_TILE_CHANCE + TREE_TILE_CHANCE + BUSH_TILE_CHANCE &&
+    fHash <
+      ROCK_TILE_CHANCE + TREE_TILE_CHANCE + BUSH_TILE_CHANCE + MUSHROOM_TILE_CHANCE
   );
 }
 

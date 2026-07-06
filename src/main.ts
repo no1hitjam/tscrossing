@@ -9,6 +9,7 @@ import { PappusParticles } from "./pappus-particles";
 import { SnowParticles } from "./snow-particles";
 import { Player } from "./player";
 import { Terrain } from "./terrain";
+import { CubeDeerActors } from "./cube-deer";
 import { DynamicMusic } from "./dynamic-music";
 import { loadNoteText, renderNoteHtml } from "./tree-notes";
 
@@ -166,6 +167,12 @@ const grassParticles = new GrassParticles(
 );
 scene.add(grassParticles.root);
 
+const cubeDeerActors = new CubeDeerActors(
+  terrain.sampleHeightAt.bind(terrain),
+  terrain.isBlockedAt.bind(terrain),
+);
+scene.add(cubeDeerActors.root);
+
 const CAMERA_HEIGHT = 10;
 const CAMERA_DISTANCE = 8;
 const vCameraOffset = new THREE.Vector3(0, CAMERA_HEIGHT, CAMERA_DISTANCE);
@@ -184,6 +191,7 @@ let bNotePanelOpen = false;
 
 const elInventoryRocks = document.getElementById("inventory-rocks")!;
 const elInventoryWood = document.getElementById("inventory-wood")!;
+const elInventoryMushrooms = document.getElementById("inventory-mushrooms")!;
 const elNoteBackdrop = document.getElementById("note-backdrop")!;
 const elNotePanel = document.getElementById("note-panel")!;
 const elNoteText = document.getElementById("note-text")!;
@@ -191,19 +199,25 @@ const elNoteText = document.getElementById("note-text")!;
 function updateInventoryHud(): void {
   elInventoryRocks.textContent = String(player.rocks);
   elInventoryWood.textContent = String(player.wood);
+  elInventoryMushrooms.textContent = String(player.mushrooms);
 }
 
 function persistInventory(): void {
   saveInventoryToCookie({
     rocks: player.rocks,
     wood: player.wood,
+    mushrooms: player.mushrooms,
     collectedTreeNotes: terrain.getCollectedTreeNotes(),
   });
 }
 
 const oSavedInventory = loadInventoryFromCookie();
 if (oSavedInventory !== null) {
-  player.setInventory(oSavedInventory.rocks, oSavedInventory.wood);
+  player.setInventory(
+    oSavedInventory.rocks,
+    oSavedInventory.wood,
+    oSavedInventory.mushrooms,
+  );
   terrain.setCollectedTreeNotes(oSavedInventory.collectedTreeNotes);
 }
 updateInventoryHud();
@@ -290,6 +304,8 @@ function animate(): void {
           void oDynamicMusic.playChopWood();
         } else if (oDamage.eFeature === "rock") {
           void oDynamicMusic.playPickAxe();
+        } else if (oDamage.eFeature === "mushroom") {
+          void oDynamicMusic.playChopWood();
         }
         if (oDamage.bDestroyed) {
           if (oDamage.eFeature === "tree") {
@@ -297,7 +313,11 @@ function animate(): void {
           } else if (oDamage.eFeature === "rock") {
             void oDynamicMusic.playRocksFall();
           }
-          if (oDamage.eFeature === "rock" || oDamage.eFeature === "tree") {
+          if (
+            oDamage.eFeature === "rock" ||
+            oDamage.eFeature === "tree" ||
+            oDamage.eFeature === "mushroom"
+          ) {
             player.collectResource(oDamage.eFeature);
             updateInventoryHud();
             persistInventory();
@@ -319,6 +339,7 @@ function animate(): void {
   helicopterSeedParticles.update(dt, player.position);
   snowParticles.update(dt, camera, player.position);
   grassParticles.update(dt, camera, player.position);
+  cubeDeerActors.update(dt, player.position);
 
   oDynamicMusic.setPlayerMoving(isPlayerMoving());
   oDynamicMusic.updateFootsteps(

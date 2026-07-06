@@ -5,6 +5,7 @@ const TILE_KEY_PATTERN = /^-?\d+,-?\d+$/;
 export interface InventoryState {
   rocks: number;
   wood: number;
+  mushrooms: number;
   collectedTreeNotes: string[];
 }
 
@@ -58,6 +59,7 @@ export function loadInventoryFromCookie(): InventoryState | null {
     const oParsed = JSON.parse(sCookieValue) as Partial<InventoryState>;
     const nRocks = parseNonNegativeInteger(oParsed.rocks);
     const nWood = parseNonNegativeInteger(oParsed.wood);
+    const nMushrooms = parseNonNegativeInteger(oParsed.mushrooms) ?? 0;
     if (nRocks === null || nWood === null) {
       return null;
     }
@@ -65,6 +67,7 @@ export function loadInventoryFromCookie(): InventoryState | null {
     return {
       rocks: nRocks,
       wood: nWood,
+      mushrooms: nMushrooms,
       collectedTreeNotes: parseTileKeyList(oParsed.collectedTreeNotes),
     };
   } catch {

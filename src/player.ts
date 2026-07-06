@@ -17,6 +17,7 @@ export class Player {
   private fYaw = 0;
   private nRocks = 0;
   private nWood = 0;
+  private nMushrooms = 0;
 
   constructor(
     fnSampleHeight: (fX: number, fZ: number) => number | null,
@@ -142,16 +143,23 @@ export class Player {
     return this.nWood;
   }
 
-  setInventory(nRocks: number, nWood: number): void {
-    this.nRocks = nRocks;
-    this.nWood = nWood;
+  get mushrooms(): number {
+    return this.nMushrooms;
   }
 
-  collectResource(eResource: "rock" | "tree"): void {
+  setInventory(nRocks: number, nWood: number, nMushrooms: number): void {
+    this.nRocks = nRocks;
+    this.nWood = nWood;
+    this.nMushrooms = nMushrooms;
+  }
+
+  collectResource(eResource: "rock" | "tree" | "mushroom"): void {
     if (eResource === "rock") {
       this.nRocks += RESOURCE_YIELD;
-    } else {
+    } else if (eResource === "tree") {
       this.nWood += RESOURCE_YIELD;
+    } else {
+      this.nMushrooms += 1;
     }
   }
 }
