@@ -1,11 +1,17 @@
 const TONE_SAMPLE_URL = "/sounds/tone_c_0.mp3";
 const CHOP_WOOD_URL = "/sounds/chop_wood.mp3";
 const PICK_AXE_URL = "/sounds/pick_axe.mp3";
+const TREE_FALL_URL = "/sounds/tree_fall.mp3";
+const ROCKS_FALL_URL = "/sounds/rocks_fall.mp3";
+const PAPER_RUSTLE_URL = "/sounds/paper_rustle.mp3";
 const LOOK_AHEAD_SECONDS = 0.15;
 const MASTER_GAIN = 0.35;
 const NOTE_GAIN = 0.55;
 const CHOP_WOOD_GAIN = 1.85;
 const PICK_AXE_GAIN = 2.85;
+const TREE_FALL_GAIN = 2.2;
+const ROCKS_FALL_GAIN = 2.2;
+const PAPER_RUSTLE_GAIN = 1.8;
 
 const SEMITONE_RATIO = 2 ** (1 / 12);
 
@@ -33,6 +39,9 @@ export class DynamicMusic {
   private oToneBuffer: AudioBuffer | null = null;
   private oChopWoodBuffer: AudioBuffer | null = null;
   private oPickAxeBuffer: AudioBuffer | null = null;
+  private oTreeFallBuffer: AudioBuffer | null = null;
+  private oRocksFallBuffer: AudioBuffer | null = null;
+  private oPaperRustleBuffer: AudioBuffer | null = null;
   private fNextNoteTime = 0;
   private nPatternIndex = 0;
   private bRunning = false;
@@ -48,10 +57,20 @@ export class DynamicMusic {
     oMasterGain.gain.value = MASTER_GAIN;
     oMasterGain.connect(oAudioContext.destination);
 
-    const [oToneBuffer, oChopWoodBuffer, oPickAxeBuffer] = await Promise.all([
+    const [
+      oToneBuffer,
+      oChopWoodBuffer,
+      oPickAxeBuffer,
+      oTreeFallBuffer,
+      oRocksFallBuffer,
+      oPaperRustleBuffer,
+    ] = await Promise.all([
       this.loadBuffer(oAudioContext, TONE_SAMPLE_URL),
       this.loadBuffer(oAudioContext, CHOP_WOOD_URL),
       this.loadBuffer(oAudioContext, PICK_AXE_URL),
+      this.loadBuffer(oAudioContext, TREE_FALL_URL),
+      this.loadBuffer(oAudioContext, ROCKS_FALL_URL),
+      this.loadBuffer(oAudioContext, PAPER_RUSTLE_URL),
     ]);
 
     this.oAudioContext = oAudioContext;
@@ -59,6 +78,9 @@ export class DynamicMusic {
     this.oToneBuffer = oToneBuffer;
     this.oChopWoodBuffer = oChopWoodBuffer;
     this.oPickAxeBuffer = oPickAxeBuffer;
+    this.oTreeFallBuffer = oTreeFallBuffer;
+    this.oRocksFallBuffer = oRocksFallBuffer;
+    this.oPaperRustleBuffer = oPaperRustleBuffer;
   }
 
   async playChopWood(): Promise<void> {
@@ -67,6 +89,18 @@ export class DynamicMusic {
 
   async playPickAxe(): Promise<void> {
     await this.playOneShot(() => this.oPickAxeBuffer, PICK_AXE_GAIN);
+  }
+
+  async playTreeFall(): Promise<void> {
+    await this.playOneShot(() => this.oTreeFallBuffer, TREE_FALL_GAIN);
+  }
+
+  async playRocksFall(): Promise<void> {
+    await this.playOneShot(() => this.oRocksFallBuffer, ROCKS_FALL_GAIN);
+  }
+
+  async playPaperRustle(): Promise<void> {
+    await this.playOneShot(() => this.oPaperRustleBuffer, PAPER_RUSTLE_GAIN);
   }
 
   private async playOneShot(

@@ -219,6 +219,7 @@ function hideNotePanel(): void {
 elNoteBackdrop.addEventListener("click", hideNotePanel);
 
 async function openNote(sFileName: string): Promise<void> {
+  void oDynamicMusic.playPaperRustle();
   try {
     const sMarkdown = await loadNoteText(sFileName);
     showNotePanel(sMarkdown);
@@ -278,6 +279,11 @@ function animate(): void {
           void oDynamicMusic.playPickAxe();
         }
         if (oDamage.bDestroyed) {
+          if (oDamage.eFeature === "tree") {
+            void oDynamicMusic.playTreeFall();
+          } else if (oDamage.eFeature === "rock") {
+            void oDynamicMusic.playRocksFall();
+          }
           player.collectResource(oDamage.eFeature);
           updateInventoryHud();
           persistInventory();
