@@ -4,6 +4,7 @@ const PICK_AXE_URL = "/sounds/pick_axe.mp3";
 const TREE_FALL_URL = "/sounds/tree_fall.mp3";
 const ROCKS_FALL_URL = "/sounds/rocks_fall.mp3";
 const PAPER_RUSTLE_URL = "/sounds/paper_rustle.mp3";
+const PLANT_PULL_URL = "/sounds/plant_pull.mp3";
 const HOWLING_WIND_URL = "/sounds/howling_wind.mp3";
 const FOOTSTEP_GRASS_URL = "/sounds/footstep_grass.wav";
 const FOOTSTEP_DIRT_URL = "/sounds/footstep_dirt.wav";
@@ -15,6 +16,7 @@ const PICK_AXE_GAIN = 2.85;
 const TREE_FALL_GAIN = 2.2;
 const ROCKS_FALL_GAIN = 2.2;
 const PAPER_RUSTLE_GAIN = 1.8;
+const PLANT_PULL_GAIN = 1.8;
 const HOWLING_WIND_GAIN = 0.4;
 const FOOTSTEP_GAIN = 0.4;
 const FOOTSTEP_INTERVAL_SECONDS = 0.52;
@@ -49,6 +51,7 @@ export class DynamicMusic {
   private oTreeFallBuffer: AudioBuffer | null = null;
   private oRocksFallBuffer: AudioBuffer | null = null;
   private oPaperRustleBuffer: AudioBuffer | null = null;
+  private oPlantPullBuffer: AudioBuffer | null = null;
   private oHowlingWindBuffer: AudioBuffer | null = null;
   private oFootstepGrassBuffer: AudioBuffer | null = null;
   private oFootstepDirtBuffer: AudioBuffer | null = null;
@@ -77,6 +80,7 @@ export class DynamicMusic {
       oTreeFallBuffer,
       oRocksFallBuffer,
       oPaperRustleBuffer,
+      oPlantPullBuffer,
       oHowlingWindBuffer,
       oFootstepGrassBuffer,
       oFootstepDirtBuffer,
@@ -87,6 +91,7 @@ export class DynamicMusic {
       this.loadBuffer(oAudioContext, TREE_FALL_URL),
       this.loadBuffer(oAudioContext, ROCKS_FALL_URL),
       this.loadBuffer(oAudioContext, PAPER_RUSTLE_URL),
+      this.loadBuffer(oAudioContext, PLANT_PULL_URL),
       this.loadBuffer(oAudioContext, HOWLING_WIND_URL),
       this.loadBuffer(oAudioContext, FOOTSTEP_GRASS_URL),
       this.loadBuffer(oAudioContext, FOOTSTEP_DIRT_URL),
@@ -100,6 +105,7 @@ export class DynamicMusic {
     this.oTreeFallBuffer = oTreeFallBuffer;
     this.oRocksFallBuffer = oRocksFallBuffer;
     this.oPaperRustleBuffer = oPaperRustleBuffer;
+    this.oPlantPullBuffer = oPlantPullBuffer;
     this.oHowlingWindBuffer = oHowlingWindBuffer;
     this.oFootstepGrassBuffer = oFootstepGrassBuffer;
     this.oFootstepDirtBuffer = oFootstepDirtBuffer;
@@ -123,6 +129,10 @@ export class DynamicMusic {
 
   async playPaperRustle(): Promise<void> {
     await this.playOneShot(() => this.oPaperRustleBuffer, PAPER_RUSTLE_GAIN);
+  }
+
+  async playPlantPull(): Promise<void> {
+    await this.playOneShot(() => this.oPlantPullBuffer, PLANT_PULL_GAIN);
   }
 
   private async playOneShot(

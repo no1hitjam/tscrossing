@@ -304,14 +304,14 @@ function animate(): void {
           void oDynamicMusic.playChopWood();
         } else if (oDamage.eFeature === "rock") {
           void oDynamicMusic.playPickAxe();
-        } else if (oDamage.eFeature === "mushroom") {
-          void oDynamicMusic.playChopWood();
         }
         if (oDamage.bDestroyed) {
           if (oDamage.eFeature === "tree") {
             void oDynamicMusic.playTreeFall();
           } else if (oDamage.eFeature === "rock") {
             void oDynamicMusic.playRocksFall();
+          } else if (oDamage.eFeature === "mushroom") {
+            void oDynamicMusic.playPlantPull();
           }
           if (
             oDamage.eFeature === "rock" ||
