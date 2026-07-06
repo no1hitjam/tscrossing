@@ -173,7 +173,9 @@ export class CubeDeerActors {
     this.fnSampleHeight = fnSampleHeight;
     this.fnIsBlocked = fnIsBlocked;
 
-    const oFurTexture = new THREE.TextureLoader().load("/deer_fur.png");
+    const oFurTexture = new THREE.TextureLoader().load(
+      `${import.meta.env.BASE_URL}deer_fur.png`,
+    );
     oFurTexture.wrapS = THREE.RepeatWrapping;
     oFurTexture.wrapT = THREE.RepeatWrapping;
     oFurTexture.colorSpace = THREE.SRGBColorSpace;

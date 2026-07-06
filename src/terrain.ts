@@ -532,12 +532,13 @@ export class Terrain {
   private sHighlightedTileKey: string | null = null;
 
   constructor() {
-    const oGrassTexture = new THREE.TextureLoader().load("/grass.png");
+    const sAssetBase = import.meta.env.BASE_URL;
+    const oGrassTexture = new THREE.TextureLoader().load(`${sAssetBase}grass.png`);
     oGrassTexture.wrapS = THREE.RepeatWrapping;
     oGrassTexture.wrapT = THREE.RepeatWrapping;
     oGrassTexture.colorSpace = THREE.SRGBColorSpace;
 
-    const oDirtTexture = new THREE.TextureLoader().load("/dirt.png");
+    const oDirtTexture = new THREE.TextureLoader().load(`${sAssetBase}dirt.png`);
     oDirtTexture.wrapS = THREE.RepeatWrapping;
     oDirtTexture.wrapT = THREE.RepeatWrapping;
     oDirtTexture.colorSpace = THREE.SRGBColorSpace;
@@ -572,7 +573,7 @@ export class Terrain {
     };
     this.oFogMaterial = createFogShaderMaterial(this.oFogUniforms);
 
-    const oRockTexture = new THREE.TextureLoader().load("/rock.png");
+    const oRockTexture = new THREE.TextureLoader().load(`${sAssetBase}rock.png`);
     oRockTexture.wrapS = THREE.RepeatWrapping;
     oRockTexture.wrapT = THREE.RepeatWrapping;
     oRockTexture.colorSpace = THREE.SRGBColorSpace;
@@ -582,7 +583,7 @@ export class Terrain {
       flatShading: true,
     });
 
-    const oBushTexture = new THREE.TextureLoader().load("/bush.png");
+    const oBushTexture = new THREE.TextureLoader().load(`${sAssetBase}bush.png`);
     oBushTexture.wrapS = THREE.RepeatWrapping;
     oBushTexture.wrapT = THREE.RepeatWrapping;
     oBushTexture.colorSpace = THREE.SRGBColorSpace;
@@ -592,7 +593,9 @@ export class Terrain {
       flatShading: true,
     });
 
-    const oMushroomTexture = new THREE.TextureLoader().load("/mushroom.png");
+    const oMushroomTexture = new THREE.TextureLoader().load(
+      `${sAssetBase}mushroom.png`,
+    );
     oMushroomTexture.wrapS = THREE.RepeatWrapping;
     oMushroomTexture.wrapT = THREE.RepeatWrapping;
     oMushroomTexture.colorSpace = THREE.SRGBColorSpace;
@@ -602,7 +605,9 @@ export class Terrain {
       flatShading: true,
     });
 
-    const oTreeBarkTexture = new THREE.TextureLoader().load("/TreeBark.png");
+    const oTreeBarkTexture = new THREE.TextureLoader().load(
+      `${sAssetBase}TreeBark.png`,
+    );
     oTreeBarkTexture.wrapS = THREE.RepeatWrapping;
     oTreeBarkTexture.wrapT = THREE.RepeatWrapping;
     oTreeBarkTexture.colorSpace = THREE.SRGBColorSpace;

@@ -67,7 +67,7 @@ export async function loadNoteText(sFileName: string): Promise<string> {
     return sCached;
   }
 
-  const oResponse = await fetch(`/notes/${sFileName}`);
+  const oResponse = await fetch(`${import.meta.env.BASE_URL}notes/${sFileName}`);
   if (!oResponse.ok) {
     throw new Error(`Failed to load note: ${sFileName}`);
   }

@@ -54,7 +54,9 @@ export class HelicopterSeedParticles {
   constructor(fnSampleHeight: (fX: number, fZ: number) => number | null) {
     this.vSampleHeight = fnSampleHeight;
 
-    const oTexture = new THREE.TextureLoader().load("/MapleSeed.png");
+    const oTexture = new THREE.TextureLoader().load(
+      `${import.meta.env.BASE_URL}MapleSeed.png`,
+    );
     oTexture.colorSpace = THREE.SRGBColorSpace;
 
     const oMaterial = new THREE.ShaderMaterial({

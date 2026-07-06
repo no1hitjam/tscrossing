@@ -28,7 +28,9 @@ export class Player {
     this.mesh = new THREE.Group();
     this.applyTerrainHeight(0, 0);
 
-    const oPlayerTexture = new THREE.TextureLoader().load("/Player.png");
+    const oPlayerTexture = new THREE.TextureLoader().load(
+      `${import.meta.env.BASE_URL}Player.png`,
+    );
     oPlayerTexture.wrapS = THREE.RepeatWrapping;
     oPlayerTexture.wrapT = THREE.RepeatWrapping;
     oPlayerTexture.colorSpace = THREE.SRGBColorSpace;
