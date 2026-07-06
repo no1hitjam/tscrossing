@@ -10,6 +10,7 @@ import { SnowParticles } from "./snow-particles";
 import { Player } from "./player";
 import { Terrain } from "./terrain";
 import { CubeDeerActors } from "./cube-deer";
+import { DayNightCycle } from "./day-night-cycle";
 import { DynamicMusic } from "./dynamic-music";
 import { loadNoteText, renderNoteHtml } from "./tree-notes";
 
@@ -173,6 +174,13 @@ const cubeDeerActors = new CubeDeerActors(
 );
 scene.add(cubeDeerActors.root);
 
+const oDayNightCycle = new DayNightCycle({
+  oScene: scene,
+  oAmbientLight: ambientLight,
+  oSunLight: sunLight,
+  oTerrain: terrain,
+});
+
 const CAMERA_HEIGHT = 10;
 const CAMERA_DISTANCE = 8;
 const vCameraOffset = new THREE.Vector3(0, CAMERA_HEIGHT, CAMERA_DISTANCE);
@@ -264,16 +272,6 @@ async function collectHighlightedTreeNote(): Promise<void> {
   await openNote(sNoteFile);
 }
 
-function updateShadowLight(): void {
-  sunLight.position.set(
-    player.position.x + 12,
-    18,
-    player.position.z + 8,
-  );
-  sunLight.target.position.copy(player.position);
-  sunLight.target.updateMatrixWorld();
-}
-
 function animate(): void {
   requestAnimationFrame(animate);
 
@@ -334,7 +332,12 @@ function animate(): void {
   }
   bEscapeWasDown = bEscapeDown;
 
-  updateShadowLight();
+  oDayNightCycle.update(dt, player.position);
+  oDynamicMusic.setMusicVolumeScale(oDayNightCycle.fMusicVolume);
+  snowParticles.setDayNightLighting(
+    oDayNightCycle.oSnowAmbientLight,
+    oDayNightCycle.oSnowDirectionalLight,
+  );
   pappusParticles.update(dt, camera, player.position);
   helicopterSeedParticles.update(dt, player.position);
   snowParticles.update(dt, camera, player.position);

@@ -57,6 +57,8 @@ export class SnowParticles {
         map: { value: oTexture },
         fadeIn: { value: FADE_IN },
         fadeOut: { value: FADE_OUT },
+        uAmbientLight: { value: new THREE.Color(0.55, 0.55, 0.55) },
+        uDirectionalLight: { value: new THREE.Color(1.1, 1.1, 1.1) },
       },
       vertexShader: `
         ${INSTANCE_AGE_VERTEX_PARS}
@@ -73,6 +75,8 @@ export class SnowParticles {
         uniform sampler2D map;
         uniform float fadeIn;
         uniform float fadeOut;
+        uniform vec3 uAmbientLight;
+        uniform vec3 uDirectionalLight;
 
         varying vec2 vUv;
         varying float vAge;
@@ -87,7 +91,8 @@ export class SnowParticles {
             discard;
           }
 
-          gl_FragColor = vec4(tex.rgb, alpha);
+          vec3 vLit = uAmbientLight + uDirectionalLight;
+          gl_FragColor = vec4(tex.rgb * vLit, alpha);
         }
       `,
       transparent: true,
@@ -129,6 +134,15 @@ export class SnowParticles {
     this.oMesh.instanceMatrix.needsUpdate = true;
     this.aInstanceAge.needsUpdate = true;
     this.aInstanceLifetime.needsUpdate = true;
+  }
+
+  setDayNightLighting(
+    oAmbientLight: THREE.Color,
+    oDirectionalLight: THREE.Color,
+  ): void {
+    const oUniforms = this.oMesh.material.uniforms;
+    oUniforms.uAmbientLight.value.copy(oAmbientLight);
+    oUniforms.uDirectionalLight.value.copy(oDirectionalLight);
   }
 
   update(fDt: number, oCamera: THREE.Camera, vCenter: THREE.Vector3): void {

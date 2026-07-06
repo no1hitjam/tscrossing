@@ -719,6 +719,18 @@ export class Terrain {
     this.oFogUniforms.uPlayerPosition.value.set(fWorldX, fWorldZ);
   }
 
+  setDayNightFog(
+    oFogColor: THREE.Color,
+    oFogDarkColor: THREE.Color,
+    oFogSunColor: THREE.Color,
+    fFogSunBlend: number,
+  ): void {
+    this.oFogUniforms.uFogColor.value.copy(oFogColor);
+    this.oFogUniforms.uFogDarkColor.value.copy(oFogDarkColor);
+    this.oFogUniforms.uFogSunColor.value.copy(oFogSunColor);
+    this.oFogUniforms.uFogSunBlend.value = fFogSunBlend;
+  }
+
   hasRockAt(fWorldX: number, fWorldZ: number): boolean {
     const { nTileX, nTileZ } = worldToTileCoords(fWorldX, fWorldZ);
     return this.isFeatureActive(nTileX, nTileZ, "rock");

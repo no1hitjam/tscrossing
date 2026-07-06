@@ -62,6 +62,7 @@ export class DynamicMusic {
   private nPatternIndex = 0;
   private bRunning = false;
   private bPlayerMoving = false;
+  private fMusicVolumeScale = 1;
 
   async init(): Promise<void> {
     if (this.oAudioContext !== null) {
@@ -215,6 +216,10 @@ export class DynamicMusic {
     this.bPlayerMoving = bMoving;
   }
 
+  setMusicVolumeScale(fScale: number): void {
+    this.fMusicVolumeScale = fScale;
+  }
+
   updateFootsteps(
     fDt: number,
     bMoving: boolean,
@@ -274,7 +279,8 @@ export class DynamicMusic {
       const nSemitones = fBlend >= 0.5 ? nFullSemitones : nMinimalSemitones;
       const fStepSeconds =
         fFullStepSeconds * fBlend + fMinimalStepSeconds * (1 - fBlend);
-      const fNoteGain = NOTE_GAIN * (0.82 + 0.18 * fBlend);
+      const fNoteGain =
+        NOTE_GAIN * (0.82 + 0.18 * fBlend) * this.fMusicVolumeScale;
 
       this.scheduleTone(nSemitones, this.fNextNoteTime, fNoteGain);
       this.nPatternIndex += 1;
