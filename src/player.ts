@@ -130,6 +130,10 @@ export class Player {
     return this.mesh.position;
   }
 
+  get bMoving(): boolean {
+    return this.vVelocity.lengthSq() > 0.01;
+  }
+
   get rocks(): number {
     return this.nRocks;
   }

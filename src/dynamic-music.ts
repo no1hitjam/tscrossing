@@ -4,6 +4,8 @@ const PICK_AXE_URL = "/sounds/pick_axe.mp3";
 const TREE_FALL_URL = "/sounds/tree_fall.mp3";
 const ROCKS_FALL_URL = "/sounds/rocks_fall.mp3";
 const PAPER_RUSTLE_URL = "/sounds/paper_rustle.mp3";
+const FOOTSTEP_GRASS_URL = "/sounds/footstep_grass.wav";
+const FOOTSTEP_DIRT_URL = "/sounds/footstep_dirt.wav";
 const LOOK_AHEAD_SECONDS = 0.15;
 const MASTER_GAIN = 0.35;
 const NOTE_GAIN = 0.55;
@@ -12,6 +14,9 @@ const PICK_AXE_GAIN = 2.85;
 const TREE_FALL_GAIN = 2.2;
 const ROCKS_FALL_GAIN = 2.2;
 const PAPER_RUSTLE_GAIN = 1.8;
+const FOOTSTEP_GAIN = 0.4;
+const FOOTSTEP_INTERVAL_SECONDS = 0.52;
+const FOOTSTEP_SPRINT_INTERVAL_SCALE = 0.65;
 
 const SEMITONE_RATIO = 2 ** (1 / 12);
 
@@ -42,7 +47,10 @@ export class DynamicMusic {
   private oTreeFallBuffer: AudioBuffer | null = null;
   private oRocksFallBuffer: AudioBuffer | null = null;
   private oPaperRustleBuffer: AudioBuffer | null = null;
+  private oFootstepGrassBuffer: AudioBuffer | null = null;
+  private oFootstepDirtBuffer: AudioBuffer | null = null;
   private fNextNoteTime = 0;
+  private fFootstepTimer = 0;
   private nPatternIndex = 0;
   private bRunning = false;
   private bPlayerMoving = false;
@@ -64,6 +72,8 @@ export class DynamicMusic {
       oTreeFallBuffer,
       oRocksFallBuffer,
       oPaperRustleBuffer,
+      oFootstepGrassBuffer,
+      oFootstepDirtBuffer,
     ] = await Promise.all([
       this.loadBuffer(oAudioContext, TONE_SAMPLE_URL),
       this.loadBuffer(oAudioContext, CHOP_WOOD_URL),
@@ -71,6 +81,8 @@ export class DynamicMusic {
       this.loadBuffer(oAudioContext, TREE_FALL_URL),
       this.loadBuffer(oAudioContext, ROCKS_FALL_URL),
       this.loadBuffer(oAudioContext, PAPER_RUSTLE_URL),
+      this.loadBuffer(oAudioContext, FOOTSTEP_GRASS_URL),
+      this.loadBuffer(oAudioContext, FOOTSTEP_DIRT_URL),
     ]);
 
     this.oAudioContext = oAudioContext;
@@ -81,6 +93,8 @@ export class DynamicMusic {
     this.oTreeFallBuffer = oTreeFallBuffer;
     this.oRocksFallBuffer = oRocksFallBuffer;
     this.oPaperRustleBuffer = oPaperRustleBuffer;
+    this.oFootstepGrassBuffer = oFootstepGrassBuffer;
+    this.oFootstepDirtBuffer = oFootstepDirtBuffer;
   }
 
   async playChopWood(): Promise<void> {
@@ -178,6 +192,35 @@ export class DynamicMusic {
 
   setPlayerMoving(bMoving: boolean): void {
     this.bPlayerMoving = bMoving;
+  }
+
+  updateFootsteps(
+    fDt: number,
+    bMoving: boolean,
+    bOnDirt: boolean,
+    bSprinting: boolean,
+  ): void {
+    if (!bMoving) {
+      this.fFootstepTimer = 0;
+      return;
+    }
+
+    const fInterval =
+      FOOTSTEP_INTERVAL_SECONDS *
+      (bSprinting ? FOOTSTEP_SPRINT_INTERVAL_SCALE : 1);
+    this.fFootstepTimer += fDt;
+
+    while (this.fFootstepTimer >= fInterval) {
+      this.fFootstepTimer -= fInterval;
+      void this.playFootstep(bOnDirt);
+    }
+  }
+
+  private async playFootstep(bOnDirt: boolean): Promise<void> {
+    await this.playOneShot(
+      () => (bOnDirt ? this.oFootstepDirtBuffer : this.oFootstepGrassBuffer),
+      FOOTSTEP_GAIN,
+    );
   }
 
   update(): void {

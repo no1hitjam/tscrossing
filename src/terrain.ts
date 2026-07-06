@@ -137,7 +137,13 @@ class TerrainChunk {
     );
 
     const geometryNonIndexed = geometry.toNonIndexed();
-    applyTileQuads(geometryNonIndexed, CHUNK_SEGMENTS, fTileUvSize);
+    applyTileQuads(
+      geometryNonIndexed,
+      nChunkX,
+      nChunkZ,
+      CHUNK_SEGMENTS,
+      fTileUvSize,
+    );
     geometryNonIndexed.computeVertexNormals();
     geometry.dispose();
 
@@ -549,6 +555,11 @@ export class Terrain {
 
   isBlockedAt(fWorldX: number, fWorldZ: number): boolean {
     return this.hasRockAt(fWorldX, fWorldZ) || this.isTreeBlockingAt(fWorldX, fWorldZ);
+  }
+
+  isDirtAt(fWorldX: number, fWorldZ: number): boolean {
+    const { nTileX, nTileZ } = worldToTileCoords(fWorldX, fWorldZ);
+    return tileIsDirt(nTileX, nTileZ);
   }
 
   getFeatureAt(fWorldX: number, fWorldZ: number): TileFeature | null {
@@ -1082,6 +1093,10 @@ function tileHasTree(nTileX: number, nTileZ: number): boolean {
   return fHash >= ROCK_TILE_CHANCE && fHash < ROCK_TILE_CHANCE + TREE_TILE_CHANCE;
 }
 
+function tileIsDirt(nTileX: number, nTileZ: number): boolean {
+  return hashTileSeed(nTileX, nTileZ, 3) < DIRT_TILE_CHANCE;
+}
+
 function setTreeMeshMaterial(
   oTree: THREE.Mesh,
   oMaterial: THREE.Material,
@@ -1348,6 +1363,8 @@ function setQuadTileUv(
 
 function applyTileQuads(
   geometry: THREE.BufferGeometry,
+  nChunkX: number,
+  nChunkZ: number,
   nSegments: number,
   fTileUvSize: number,
 ): void {
@@ -1355,8 +1372,10 @@ function applyTileQuads(
 
   for (let iy = 0; iy < nSegments; iy++) {
     for (let ix = 0; ix < nSegments; ix++) {
+      const nTileX = nChunkX * nSegments + ix;
+      const nTileZ = nChunkZ * nSegments + iy;
       const nBase = (iy * nSegments + ix) * 6;
-      const nMaterialIndex = Math.random() < DIRT_TILE_CHANCE ? 1 : 0;
+      const nMaterialIndex = tileIsDirt(nTileX, nTileZ) ? 1 : 0;
 
       setQuadTileUv(uvs, nBase, fTileUvSize);
       geometry.addGroup(nBase, 6, nMaterialIndex);

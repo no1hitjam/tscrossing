@@ -305,6 +305,12 @@ function animate(): void {
   helicopterSeedParticles.update(dt, player.position);
 
   oDynamicMusic.setPlayerMoving(isPlayerMoving());
+  oDynamicMusic.updateFootsteps(
+    dt,
+    player.bMoving,
+    terrain.isDirtAt(player.position.x, player.position.z),
+    !!(keys["ShiftLeft"] || keys["ShiftRight"]),
+  );
   oDynamicMusic.update();
 
   renderer.render(scene, camera);
